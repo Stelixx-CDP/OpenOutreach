@@ -96,10 +96,36 @@ def playwright_login(session: "AccountSession"):
 
 
 def launch_browser(storage_state=None):
+    import os
     logger.debug("Launching Playwright")
     playwright = sync_playwright().start()
-    browser = playwright.chromium.launch(headless=False, slow_mo=BROWSER_SLOW_MO)
-    context = browser.new_context(storage_state=storage_state)
+    
+    # Cho phép cấu hình headless qua biến môi trường, mặc định là False để chạy noVNC debug
+    headless = os.environ.get("BROWSER_HEADLESS", "false").lower() == "true"
+    launch_args = {"headless": headless, "slow_mo": BROWSER_SLOW_MO}
+    
+    # Đọc cấu hình proxy từ biến môi trường
+    proxy_server = os.environ.get("PROXY_SERVER")
+    proxy_user = os.environ.get("PROXY_USERNAME")
+    proxy_pass = os.environ.get("PROXY_PASSWORD")
+    
+    proxy_config = None
+    if proxy_server:
+        proxy_config = {"server": proxy_server}
+        if proxy_user and proxy_pass:
+            proxy_config["username"] = proxy_user
+            proxy_config["password"] = proxy_pass
+            
+    if proxy_config:
+        launch_args["proxy"] = {"server": proxy_config["server"]}
+        
+    browser = playwright.chromium.launch(**launch_args)
+    
+    context_args = {"storage_state": storage_state}
+    if proxy_config:
+        context_args["proxy"] = proxy_config
+        
+    context = browser.new_context(**context_args)
     context.set_default_timeout(BROWSER_DEFAULT_TIMEOUT_MS)
     context.set_default_navigation_timeout(BROWSER_DEFAULT_TIMEOUT_MS)
     Stealth().apply_stealth_sync(context)

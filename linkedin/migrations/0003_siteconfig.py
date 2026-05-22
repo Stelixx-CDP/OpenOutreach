@@ -31,7 +31,10 @@ def migrate_env_to_db(apps, schema_editor):
         "llm_api_base": values.get("LLM_API_BASE", ""),
     })
 
-    env_file.unlink()
+    try:
+        env_file.unlink()
+    except OSError:
+        pass
 
 
 class Migration(migrations.Migration):
