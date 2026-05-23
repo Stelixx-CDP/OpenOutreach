@@ -46,21 +46,5 @@ def is_gdpr_protected(country_code: str | None) -> bool:
 
 
 def apply_gdpr_newsletter_override(session, country_code: str | None):
-    """Auto-enable newsletter subscription for non-GDPR locations.
-
-    If the country code is NOT GDPR-protected, sets
-    ``session.linkedin_profile.subscribe_newsletter = True`` and saves.
-    If GDPR-protected, does nothing (respects existing config).
-    """
-    if not is_gdpr_protected(country_code):
-        session.linkedin_profile.subscribe_newsletter = True
-        session.linkedin_profile.save(update_fields=["subscribe_newsletter"])
-        logger.info(
-            "Non-GDPR country (%s): auto-enabled newsletter for %s",
-            country_code, session,
-        )
-    else:
-        logger.debug(
-            "GDPR-protected country (%s): newsletter config unchanged for %s",
-            country_code, session,
-        )
+    """No-op. Automatically subscribing users based on location is disabled for privacy."""
+    logger.debug("Newsletter auto-subscription override is disabled.")

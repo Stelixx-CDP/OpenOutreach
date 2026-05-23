@@ -15,4 +15,4 @@ pyyaml
 fastembed
 scikit-learn
 huggingface_hub
-openoutreach @ git+https://github.com/eracle/openoutreach-cli.git@main
+openoutreach @ git+https://github.com/eracle/openoutreach-cli.git@eb14e0b87e377caf04210d6e549bf0ad5359955c

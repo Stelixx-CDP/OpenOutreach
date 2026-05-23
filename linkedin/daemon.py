@@ -242,25 +242,12 @@ def seconds_until_active() -> float:
 
 
 def run_daemon(session):
-    from linkedin.ml.hub import fetch_kit
-    from linkedin.setup.freemium import import_freemium_campaign
     from linkedin.models import Campaign
 
     cfg = CAMPAIGN_CONFIG
 
-    # Load kit model for freemium campaigns
-    kit = fetch_kit()
-    if kit:
-        freemium_campaign = import_freemium_campaign(kit["config"])
-        if freemium_campaign:
-            prev_campaign = session.campaign
-            session.campaign = freemium_campaign
-            from linkedin.setup.freemium import seed_profiles
-            seed_profiles(session, kit["config"])
-            session.campaign = prev_campaign
-
     qualifiers = _build_qualifiers(
-        session.campaigns, cfg, kit_model=kit["model"] if kit else None,
+        session.campaigns, cfg, kit_model=None,
     )
 
     campaigns = session.campaigns

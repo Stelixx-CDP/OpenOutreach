@@ -45,7 +45,7 @@ class OnboardConfig:
     llm_api_key: str = ""
     ai_model: str = ""
     llm_api_base: str = ""
-    newsletter: bool = True
+    newsletter: bool = False
     connect_daily_limit: int = DEFAULT_CONNECT_DAILY_LIMIT
     connect_weekly_limit: int = DEFAULT_CONNECT_WEEKLY_LIMIT
     follow_up_daily_limit: int = DEFAULT_FOLLOW_UP_DAILY_LIMIT
@@ -149,7 +149,7 @@ def _create_account(
     email: str,
     password: str,
     *,
-    subscribe: bool = True,
+    subscribe: bool = False,
     connect_daily: int = DEFAULT_CONNECT_DAILY_LIMIT,
     connect_weekly: int = DEFAULT_CONNECT_WEEKLY_LIMIT,
     follow_up_daily: int = DEFAULT_FOLLOW_UP_DAILY_LIMIT,

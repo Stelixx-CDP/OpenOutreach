@@ -17,6 +17,23 @@ _RATE_LIMIT_FIELDS = {
 }
 
 
+class EncryptedCharField(models.CharField):
+    """CharField that automatically encrypts values on save and decrypts on load."""
+
+    def get_prep_value(self, value):
+        value = super().get_prep_value(value)
+        if value:
+            from linkedin.crypto import encrypt_value
+            return encrypt_value(value)
+        return value
+
+    def from_db_value(self, value, expression, connection):
+        if value:
+            from linkedin.crypto import decrypt_value
+            return decrypt_value(value)
+        return value
+
+
 class SiteConfig(models.Model):
     """Singleton model for global site configuration (LLM keys, etc.)."""
 
@@ -34,7 +51,7 @@ class SiteConfig(models.Model):
         choices=LLMProvider.choices,
         default=LLMProvider.OPENAI,
     )
-    llm_api_key = models.CharField(max_length=500, blank=True, default="")
+    llm_api_key = EncryptedCharField(max_length=500, blank=True, default="")
     ai_model = models.CharField(max_length=200, blank=True, default="")
     llm_api_base = models.CharField(max_length=500, blank=True, default="")
 
@@ -88,8 +105,8 @@ class LinkedInProfile(models.Model):
         related_name="+",
     )
     linkedin_username = models.CharField(max_length=200)
-    linkedin_password = models.CharField(max_length=200)
-    subscribe_newsletter = models.BooleanField(default=True)
+    linkedin_password = EncryptedCharField(max_length=200)
+    subscribe_newsletter = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
     connect_daily_limit = models.PositiveIntegerField(default=20)
     connect_weekly_limit = models.PositiveIntegerField(default=100)

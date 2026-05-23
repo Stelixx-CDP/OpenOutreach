@@ -90,7 +90,7 @@ Three apps in `INSTALLED_APPS`:
 
 ## Key Modules
 
-- **`daemon.py`** — Worker loop with active-hours guard (`ENABLE_ACTIVE_HOURS` flag, `seconds_until_active()`), `_build_qualifiers()`, freemium import, `_CloudPromoRotator`. Calls `scheduler.reconcile()` when the queue has no ready task.
+- **`daemon.py`** — Worker loop with active-hours guard (`ENABLE_ACTIVE_HOURS` flag, `seconds_until_active()`), `_build_qualifiers()`, `_CloudPromoRotator`. Calls `scheduler.reconcile()` when the queue has no ready task.
 - **`diagnostics.py`** — `failure_diagnostics()` context manager, `capture_failure()` saves page HTML/screenshot/traceback to `/tmp/openoutreach-diagnostics/`.
 - **`tasks/scheduler.py`** — Single owner of Task row creation. Low-level `enqueue_*`, state-transition hook `on_deal_state_entered`, and `reconcile()`.
 - **`tasks/connect.py`** — `handle_connect`, `ConnectStrategy`.
@@ -127,7 +127,7 @@ Three apps in `INSTALLED_APPS`:
 - **`api/messaging/send.py`** — Send messages via Voyager messaging API.
 - **`api/messaging/conversations.py`** — Fetch conversations/messages.
 - **`api/messaging/utils.py`** — Shared helpers: `encode_urn()`, `check_response()`.
-- **`setup/freemium.py`** — `import_freemium_campaign()`, `seed_profiles()`.
+- **`setup/freemium.py`** [DEPRECATED/UNUSED] — `import_freemium_campaign()`, `seed_profiles()`.
 - **`setup/gdpr.py`** — `apply_gdpr_newsletter_override()`.
 - **`setup/self_profile.py`** — `discover_self_profile()` — fetches self profile via Voyager API, sets `linkedin_profile.self_lead`.
 - **`setup/seeds.py`** — User-provided seed profiles: parse URLs, create Leads + QUALIFIED Deals.

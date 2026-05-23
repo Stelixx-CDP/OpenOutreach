@@ -15,7 +15,7 @@ PROMPTS_DIR = Path(__file__).parent / "templates" / "prompts"
 
 DIAGNOSTICS_DIR = Path("/tmp/openoutreach-diagnostics")
 
-FASTEMBED_CACHE_DIR = ROOT_DIR / ".cache" / "fastembed"
+FASTEMBED_CACHE_DIR = ROOT_DIR / "data" / "fastembed"
 
 FIXTURE_DIR = ROOT_DIR / "tests" / "fixtures"
 FIXTURE_PROFILES_DIR = FIXTURE_DIR / "profiles"

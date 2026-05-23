@@ -80,11 +80,11 @@ def _make_fake_session(subscribe=None):
     return session
 
 
-def test_override_non_gdpr_sets_true():
+def test_override_non_gdpr_does_not_set_true():
     session = _make_fake_session(subscribe=None)
     apply_gdpr_newsletter_override(session, "us")
-    assert session.linkedin_profile.subscribe_newsletter is True
-    session.linkedin_profile.save.assert_called_once()
+    assert session.linkedin_profile.subscribe_newsletter is None
+    session.linkedin_profile.save.assert_not_called()
 
 
 def test_override_gdpr_respects_existing_config():
