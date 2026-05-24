@@ -33,11 +33,13 @@ SELECTOR_CHAINS = {
         'div[contenteditable="true"]',
     ],
     "compose_send": [
+        'form.msg-form button[type="submit"]',
+        '.msg-form button[type="submit"]',
+        '.msg-form__footer button[type="submit"]',
         'button[type="submit"][class*="msg-form"]',
         'button[class*="send-btn"]',
         'button[class*="send-button"]',
-        'form button[type="submit"]',
-        'button[type="submit"]',
+        '.msg-form__send-button',
     ],
 }
 
@@ -104,16 +106,44 @@ def _send_message(session, profile: Dict[str, Any], message: str) -> bool:
         )
         session.wait(1, 2)
 
+        input_el = _find(session.page, "compose_input").first
         human_type(
-            _find(session.page, "compose_input").first,
+            input_el,
             message,
             min_delay=10,
             max_delay=50,
         )
-        _find(session.page, "compose_send").first.click(delay=200)
         session.wait(0.5, 1)
-        logger.info("Message sent to %s (direct thread)", public_identifier)
-        return True
+
+        send_btn = _find(session.page, "compose_send").first
+        send_btn.click(delay=200)
+
+        # Verify message is sent by checking if the input is cleared
+        # and we are still in messaging section.
+        success = False
+        for _ in range(10):  # Wait up to 5 seconds
+            session.wait(0.5, 0.5)
+            # URL check: if not in messaging, send failed or redirected
+            if "/messaging" not in session.page.url:
+                logger.warning("Left messaging page unexpectedly: %s", session.page.url)
+                break
+            try:
+                text = input_el.inner_text() or ""
+                if not text.strip():
+                    success = True
+                    break
+            except Exception:
+                # Element detached, indicating page state change
+                success = True
+                break
+
+        if success:
+            logger.info("Message sent to %s (direct thread)", public_identifier)
+            return True
+        else:
+            logger.warning("Message input not cleared after send to %s (UI fail)", public_identifier)
+            return False
+
     except (PlaywrightError, TimeoutError) as e:
         logger.error("Failed to send message to %s (direct thread) → %s", public_identifier, e)
         return False
