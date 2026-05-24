@@ -33,15 +33,17 @@ SELECTOR_CHAINS = {
         'div[contenteditable="true"]',
     ],
     "compose_send": [
+        # Only match the actual Send submit button — NOT the "..." options
+        # menu that sits next to "Press Enter to Send" text.
         'form.msg-form button[type="submit"]',
         '.msg-form button[type="submit"]',
         '.msg-form__footer button[type="submit"]',
         'button[type="submit"][class*="msg-form"]',
-        '.msg-form button[aria-label*="Send"]',
-        '.msg-form button:has-text("Send")',
-        'button[class*="send-btn"]',
-        'button[class*="send-button"]',
         '.msg-form__send-button',
+        'button[class*="msg-form__send-button"]',
+        # Avoid: button[aria-label*="Send"] and button:has-text("Send")
+        # because the "..." options button near "Press Enter to Send"
+        # matches both of those.
     ],
 }
 
@@ -109,18 +111,29 @@ def _send_message(session, profile: Dict[str, Any], message: str) -> bool:
         session.wait(1, 2)
 
         input_el = _find(session.page, "compose_input").first
-        human_type(
-            input_el,
-            message,
-            min_delay=10,
-            max_delay=50,
-        )
+
+        # Click to focus the compose input — LinkedIn's React handlers
+        # only attach after the element receives real focus via click.
+        # Without this, type() sends keystrokes but LinkedIn's JS may
+        # not process them properly, causing page reload.
+        input_el.click()
+        session.wait(0.3, 0.5)
+
+        # Flatten newlines → spaces before typing.  LinkedIn's default
+        # "Press Enter to Send" mode treats Enter as submit, so a literal
+        # \n inside the message would send it mid-sentence.
+        safe_message = message.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+
+        # Use default typing speed (50-200ms per key from conf.py).
+        # The previous 10-50ms was 5-20x faster than human and triggers
+        # LinkedIn's anti-automation detection (page reload).
+        human_type(input_el, safe_message)
         session.wait(0.5, 1)
 
         # Check if the Send button is visible (Click Send mode)
         is_send_visible = False
         try:
-            send_btn = _find(session.page, "compose_send", timeout=1000).first
+            send_btn = _find(session.page, "compose_send", timeout=3000).first
             is_send_visible = send_btn.is_visible()
         except Exception:
             pass
@@ -154,7 +167,7 @@ def _send_message(session, profile: Dict[str, Any], message: str) -> bool:
         # Fallback in case "Click Send" was active but Send button rendered late
         if not success:
             try:
-                send_btn = _find(session.page, "compose_send", timeout=1000).first
+                send_btn = _find(session.page, "compose_send", timeout=3000).first
                 if send_btn.is_visible():
                     logger.info("Retrying Send button click for %s...", public_identifier)
                     send_btn.click(delay=200)
