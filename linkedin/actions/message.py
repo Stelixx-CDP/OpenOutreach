@@ -37,6 +37,8 @@ SELECTOR_CHAINS = {
         '.msg-form button[type="submit"]',
         '.msg-form__footer button[type="submit"]',
         'button[type="submit"][class*="msg-form"]',
+        '.msg-form button[aria-label*="Send"]',
+        '.msg-form button:has-text("Send")',
         'button[class*="send-btn"]',
         'button[class*="send-button"]',
         '.msg-form__send-button',
@@ -115,8 +117,20 @@ def _send_message(session, profile: Dict[str, Any], message: str) -> bool:
         )
         session.wait(0.5, 1)
 
-        send_btn = _find(session.page, "compose_send").first
-        send_btn.click(delay=200)
+        # Check if the Send button is visible (Click Send mode)
+        is_send_visible = False
+        try:
+            send_btn = _find(session.page, "compose_send", timeout=1000).first
+            is_send_visible = send_btn.is_visible()
+        except Exception:
+            pass
+
+        if is_send_visible:
+            logger.info("Send button is visible. Clicking Send button for %s...", public_identifier)
+            send_btn.click(delay=200)
+        else:
+            logger.info("Send button is not visible. Pressing Enter to send for %s...", public_identifier)
+            input_el.press("Enter")
 
         # Verify message is sent by checking if the input is cleared
         # and we are still in messaging section.
@@ -136,6 +150,20 @@ def _send_message(session, profile: Dict[str, Any], message: str) -> bool:
                 # Element detached, indicating page state change
                 success = True
                 break
+
+        # Fallback in case "Click Send" was active but Send button rendered late
+        if not success:
+            try:
+                send_btn = _find(session.page, "compose_send", timeout=1000).first
+                if send_btn.is_visible():
+                    logger.info("Retrying Send button click for %s...", public_identifier)
+                    send_btn.click(delay=200)
+                    session.wait(1)
+                    text = input_el.inner_text() or ""
+                    if not text.strip():
+                        success = True
+            except Exception:
+                pass
 
         if success:
             logger.info("Message sent to %s (direct thread)", public_identifier)

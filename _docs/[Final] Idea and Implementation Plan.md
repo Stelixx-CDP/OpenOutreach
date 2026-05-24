@@ -605,7 +605,9 @@ def auto_throttle_check(profile):
 
 **Mục tiêu:** Tăng profile visibility + SSI trước/song song với outreach.
 
-**Tại sao cần:** SSI "Engage with insights" = 0.7/25 → profile trông như ghost → low acceptance rate.
+**Tại sao cần:** 
+* SSI "Engage with insights" = 0.7/25 → profile trông như ghost → low acceptance rate.
+* **Tài liệu tham khảo & Phân tích:** Xem thêm [Nghiên cứu Case Study Chris Donnelly về Personal Brand](file:///Users/gn/Documents/Gnoc/Github/Stelixx%20CDP/OpenOutreach/_docs/research_donnellychris_personal_brand.md) để áp dụng nguyên lý 5 trụ cột thương hiệu và hệ thống inbound leads tự động vào thiết kế prompt sinh bài viết tự động (Post Scheduler).
 
 **3 lớp:**
 
