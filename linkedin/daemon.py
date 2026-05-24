@@ -30,6 +30,16 @@ from linkedin.tasks.follow_up import handle_follow_up
 
 logger = logging.getLogger(__name__)
 
+
+def _safe_notify(event_type: str, **kwargs) -> None:
+    """Send a Telegram notification, swallowing any errors."""
+    try:
+        from linkedin.notifications import safe_notify
+        safe_notify(event_type, **kwargs)
+    except Exception:
+        pass
+
+
 _HANDLERS = {
     Task.TaskType.CONNECT: handle_connect,
     Task.TaskType.CHECK_PENDING: handle_check_pending,
@@ -321,6 +331,7 @@ def run_daemon(session):
                 handler(task, session, qualifiers)
         except AuthenticationError:
             logger.warning("Session expired during %s — re-authenticating", task)
+            _safe_notify("cookie_expired", profile=session.linkedin_profile.linkedin_username)
             try:
                 session.reauthenticate()
             except Exception:
@@ -335,10 +346,24 @@ def run_daemon(session):
                 colored("Daemon stopped — LLM API error", "red", attrs=["bold"])
                 + "\n%s\nCheck llm_provider, ai_model, llm_api_key, and llm_api_base in Admin → Site Configuration.", e,
             )
+            _safe_notify("llm_error", error=str(e))
             return
-        except Exception:
+        except Exception as e:
             task.mark_failed()
             logger.exception("Task %s failed", task)
+            screenshot_bytes = None
+            try:
+                if session.page and not session.page.is_closed():
+                    screenshot_bytes = session.page.screenshot(timeout=5000)
+            except Exception:
+                pass
+            _safe_notify(
+                "browser_crash",
+                task_type=task.task_type,
+                error=str(e),
+                screenshot=screenshot_bytes,
+                campaign=session.campaign,
+            )
             continue
 
         task.mark_completed()

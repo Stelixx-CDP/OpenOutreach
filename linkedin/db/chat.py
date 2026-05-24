@@ -97,6 +97,17 @@ def _sync_from_api(session, public_identifier: str, lead, ct) -> list:
         if created:
             new_messages.append(obj)
             logger.debug("sync: new message from %s for %s", parsed["sender_name"], public_identifier)
+            if not is_outgoing:
+                try:
+                    from linkedin.notifications import safe_notify
+                    safe_notify(
+                        "lead_reply",
+                        public_identifier=public_identifier,
+                        text=parsed["text"],
+                        campaign=session.campaign,
+                    )
+                except Exception:
+                    pass
 
     # Sort new messages chronologically so the LLM sees them in order.
     new_messages.sort(key=lambda m: m.creation_date or m.pk)

@@ -17,6 +17,9 @@ class Command(BaseCommand):
         session = self._create_session()
         self._ensure_newsletter(session)
 
+        from linkedin.management.commands.telegram_listener import start_listener_thread
+        start_listener_thread()
+
         from linkedin.daemon import run_daemon
         run_daemon(session)
 

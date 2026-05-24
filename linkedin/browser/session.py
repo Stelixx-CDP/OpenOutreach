@@ -90,6 +90,11 @@ class AccountSession:
                 expires = cookie.get("expires", -1)
                 if expires > 0 and expires < time.time():
                     logger.warning("Auth cookie expired for %s — re-authenticating", self)
+                    try:
+                        from linkedin.notifications import safe_notify
+                        safe_notify("cookie_expired", profile=self.linkedin_profile.linkedin_username)
+                    except Exception:
+                        pass
                     self.close()
                     start_browser_session(session=self)
                 return

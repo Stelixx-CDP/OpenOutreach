@@ -94,6 +94,7 @@ def set_profile_state(session, public_identifier: str, new_state: str, reason: s
         raise ValueError(f"No Deal for {public_identifier} — cannot set state {new_state}")
 
     ps = ProfileState(new_state)
+    old_state = deal.state
     state_changed = (deal.state != ps)
 
     deal.state = ps
@@ -109,6 +110,18 @@ def set_profile_state(session, public_identifier: str, new_state: str, reason: s
     suffix = f" ({reason})" if reason else ""
     if state_changed:
         logger.info("%s %s%s", public_identifier, colored(label, color, attrs=attrs), suffix)
+        try:
+            from linkedin.notifications import safe_notify
+            safe_notify(
+                "deal_state_changed",
+                lead=public_identifier,
+                old_state=old_state,
+                new_state=new_state,
+                reason=reason,
+                campaign=session.campaign,
+            )
+        except Exception:
+            pass
     else:
         logger.debug("%s %s (unchanged)%s", public_identifier, label, suffix)
 

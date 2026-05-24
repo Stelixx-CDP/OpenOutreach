@@ -211,6 +211,7 @@ Tạo module `linkedin/notifications.py`:
 - Hot leads (replied today, chưa xử lý)
 - LLM calls count + estimated cost
 - Account health: acceptance rate 7d, pending count
+- **💬 Drill-down tin nhắn đã gửi hôm nay:** Danh sách chi tiết các tin nhắn Agent đã gửi trong ngày (tên lead, thời gian gửi, và nội dung tin nhắn cụ thể) giúp bạn kiểm duyệt trực quan văn phong của Agent mà không cần mở LinkedIn.
 
 **Files cần tạo/sửa:**
 - `[NEW]` `linkedin/notifications.py` — core module
