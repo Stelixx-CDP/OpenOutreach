@@ -133,6 +133,21 @@ def _load_recent_messages(deal, limit: int = RECENT_MESSAGES_WINDOW) -> list:
     return list(reversed(list(qs)))
 
 
+def _extract_fallback_name(public_id: str) -> str:
+    """Extract a fallback first name from the lead's public identifier."""
+    cleaned = public_id.lower().replace("-", " ").replace("_", " ").strip()
+    suffixes_to_remove = ["seo", "growth", "cmo", "founder", "ceo", "cop", "dev", "agent"]
+    parts = cleaned.split()
+    if not parts:
+        return "there"
+    first_part = parts[0]
+    for suffix in suffixes_to_remove:
+        if first_part.endswith(suffix) and len(first_part) > len(suffix) + 3:
+            first_part = first_part[:-len(suffix)]
+            break
+    return first_part.capitalize()
+
+
 def _render_system_prompt(session, deal, recent_messages: list) -> str:
     """Render the agent system prompt from the Jinja2 template."""
     from django.utils import timezone
@@ -144,13 +159,23 @@ def _render_system_prompt(session, deal, recent_messages: list) -> str:
     self_prof = session.self_profile
     self_name = f"{self_prof.get('first_name', '')} {self_prof.get('last_name', '')}".strip() or session.django_user.username
 
+    # Retrieve lead's name from profile summary, fallback to parsing public identifier
+    profile_sum = deal.profile_summary or {}
+    lead_first_name = profile_sum.get("first_name") or ""
+    lead_last_name = profile_sum.get("last_name") or ""
+    
+    if not lead_first_name:
+        lead_first_name = _extract_fallback_name(deal.lead.public_identifier)
+
     now = timezone.now()
     return template.render(
         self_name=self_name,
+        lead_first_name=lead_first_name,
+        lead_full_name=f"{lead_first_name} {lead_last_name}".strip(),
         product_docs=campaign.product_docs or "",
         campaign_objective=campaign.campaign_objective or "",
         booking_link=campaign.booking_link or "",
-        profile_summary=_format_facts(deal.profile_summary),
+        profile_summary=_format_facts(profile_sum),
         chat_summary=_format_facts(deal.chat_summary),
         recent_messages=_format_recent_messages(recent_messages, now),
         today=now.strftime("%Y-%m-%d"),

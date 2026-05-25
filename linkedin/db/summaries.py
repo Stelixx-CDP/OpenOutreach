@@ -131,11 +131,19 @@ def materialize_profile_summary_if_missing(deal, session) -> None:
     context = "\n\n".join(context_parts)
 
     facts = extract_facts(profile_text, context=context)
-    deal.profile_summary = {"facts": facts}
+    
+    first_name = profile.get("first_name", "") or ""
+    last_name = profile.get("last_name", "") or ""
+
+    deal.profile_summary = {
+        "facts": facts,
+        "first_name": first_name,
+        "last_name": last_name,
+    }
     deal.save(update_fields=["profile_summary"])
     logger.info(
-        "profile_summary built for deal=%s lead=%s (%d facts)",
-        deal.pk, lead.public_identifier, len(facts),
+        "profile_summary built for deal=%s lead=%s (%d facts, name: %s %s)",
+        deal.pk, lead.public_identifier, len(facts), first_name, last_name,
     )
 
 

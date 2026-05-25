@@ -12,6 +12,8 @@ def build_profile_text(profile: dict) -> str:
     """
     p = profile.get("profile", {}) or {}
     parts = [
+        p.get("first_name", "") or "",
+        p.get("last_name", "") or "",
         p.get("headline", "") or "",
         p.get("summary", "") or "",
         p.get("location_name", "") or "",
