@@ -172,6 +172,7 @@ def _render_system_prompt(session, deal, recent_messages: list) -> str:
         self_name=self_name,
         lead_first_name=lead_first_name,
         lead_full_name=f"{lead_first_name} {lead_last_name}".strip(),
+        contact_email=session.linkedin_profile.linkedin_username,
         product_docs=campaign.product_docs or "",
         campaign_objective=campaign.campaign_objective or "",
         booking_link=campaign.booking_link or "",
