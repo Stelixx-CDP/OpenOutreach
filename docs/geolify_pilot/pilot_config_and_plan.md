@@ -220,7 +220,7 @@ LLM_API_BASE=https://openrouter.ai/api/v1
 | `connect_daily_limit` | **12** | 12 × 5 working days = 60/week (15% headroom dưới target 70) |
 | `connect_weekly_limit` | **70** | 30% buffer dưới LinkedIn cap 100, an toàn cho SSI 38 |
 | `follow_up_daily_limit` | **20** | Conservative cho DM nurture |
-| `legal_accepted` | `true` | Sau khi đọc LEGAL_[NOTICE.md](http://NOTICE.md) |
+| `legal_accepted` | `true` | Sau khi đọc [LEGAL_NOTICE.md](../../LEGAL_NOTICE.md) |
 
 ### 6.3 `conf.py` — KEEP defaults (đã calibrated cẩn thận)
 
@@ -262,7 +262,7 @@ REST_DAYS = (5, 6)      # Sat + Sun off
 
 ### 6.5 Campaign field reference — 8 fields, mỗi field ảnh hưởng khác nhau
 
-Từ code (`linkedin/models.py`, `architecture.md`, `CLAUDE.md` + 3 prompt templates `qualification.j2`, `search_keywords.j2`, `follow_up_agent.j2`):
+Từ code (`linkedin/models.py`, `[architecture.md](../developer/architecture.md)`, `[CLAUDE.md](../../CLAUDE.md)` + 3 prompt templates `qualification.j2`, `search_keywords.j2`, `follow_up_agent.j2`):
 
 | Field | Type | Ảnh hưởng đến | Cong cần làm gì |
 | --- | --- | --- | --- |

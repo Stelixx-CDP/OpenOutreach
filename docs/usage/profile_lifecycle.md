@@ -118,7 +118,7 @@ On acceptance → enqueues `follow_up` task.
 
 **Where:** `tasks/follow_up.py:handle_follow_up()` → `agents/follow_up.py:run_follow_up_agent()`
 
-**Full documentation:** [`docs/follow_up_agent.md`](follow_up_agent.md)
+**Full documentation:** [follow_up_agent.md](./follow_up_agent.md)
 
 Runs an agentic follow-up conversation as a **self-rescheduling loop**: each
 invocation syncs the conversation, builds context from profile/chat fact

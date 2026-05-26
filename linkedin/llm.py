@@ -133,11 +133,24 @@ def _build_cohere(cfg):
 def _build_openai_compatible(cfg):
     if not cfg.llm_api_base:
         raise ValueError("LLM_API_BASE is required for the openai_compatible provider.")
+    from openai import AsyncOpenAI
     from pydantic_ai.models.openai import OpenAIModel
     from pydantic_ai.providers.openai import OpenAIProvider
-    return OpenAIModel(cfg.ai_model, provider=OpenAIProvider(
-        base_url=cfg.llm_api_base, api_key=cfg.llm_api_key,
-    ))
+    
+    headers = {}
+    if "openrouter.ai" in cfg.llm_api_base:
+        headers = {
+            "HTTP-Referer": "https://github.com/eracle/OpenOutreach",
+            "X-Title": "OpenOutreach",
+        }
+
+    client = AsyncOpenAI(
+        base_url=cfg.llm_api_base,
+        api_key=cfg.llm_api_key,
+        default_headers=headers,
+        max_retries=_MAX_RETRIES,
+    )
+    return OpenAIModel(cfg.ai_model, provider=OpenAIProvider(openai_client=client))
 
 
 _PROVIDER_BUILDERS: dict[str, Callable] = {

@@ -1,4 +1,4 @@
-![OpenOutreach Logo](docs/logo.png)
+![OpenOutreach Logo](docs/assets/logo.png)
 
 > **Describe your product. Define your target market. The AI finds the leads for you.**
 
@@ -14,7 +14,7 @@
 
 # Demo:
 
-<img src="docs/demo.gif" alt="Demo Animation" width="100%"/>
+<img src="docs/assets/demo.gif" alt="Demo Animation" width="100%"/>
 
 </div>
 
@@ -72,7 +72,7 @@ The interactive onboarding walks you through the three inputs above on first run
 
 Once the container is running, open **http://localhost:6080/vnc.html** in your browser to watch the browser live (noVNC). Alternatively, connect a native VNC client to `localhost:5900`.
 
-For Docker Compose, build-from-source, and more options see the **[Docker Guide](./docs/docker.md)**.
+For Docker Compose, build-from-source, and more options see the **[Docker Guide](./docs/usage/docker.md)**.
 
 > Don't want to manage Docker and VPNs? See [OpenOutreach Cloud](#%EF%B8%8F-openoutreach-cloud--zero-ops-same-ai) below.
 
@@ -194,11 +194,9 @@ Configure rate limits and behavior via Django Admin (LinkedInProfile + Campaign 
 
 ```
 ├── docs/
-│   ├── architecture.md              # System architecture
-│   ├── configuration.md             # Configuration reference
-│   ├── docker.md                    # Docker setup guide
-│   ├── templating.md                # Follow-up messaging guide
-│   └── testing.md                   # Testing strategy
+│   ├── developer/                   # Core developer reference (architecture, testing, roadmaps)
+│   ├── usage/                       # Configuration, docker setup, templating guides
+│   └── geolify_pilot/               # Geolify.ai GTM pilot specific campaign assets & plans
 ├── linkedin/
 │   ├── actions/                     # Browser actions (connect, message, status, search)
 │   ├── agents/                      # ReAct follow-up agent (multi-turn conversations)
@@ -224,13 +222,13 @@ Configure rate limits and behavior via Django Admin (LinkedInProfile + Campaign 
 
 ## 📚 Documentation
 
-- [Architecture](./docs/architecture.md)
-- [Configuration](./docs/configuration.md)
-- [Profile Lifecycle](./docs/profile_lifecycle.md)
-- [Docker Installation](./docs/docker.md)
-- [Follow-up Messaging](./docs/templating.md)
-- [Template Variables](./docs/template-variables.md)
-- [Testing](./docs/testing.md)
+- [Architecture](./docs/developer/architecture.md)
+- [Configuration](./docs/usage/configuration.md)
+- [Profile Lifecycle](./docs/usage/profile_lifecycle.md)
+- [Docker Installation](./docs/usage/docker.md)
+- [Follow-up Messaging](./docs/usage/templating.md)
+- [Template Variables](./docs/usage/template_variables.md)
+- [Testing](./docs/developer/testing.md)
 
 ---
 

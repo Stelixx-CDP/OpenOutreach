@@ -134,7 +134,20 @@ Cả hai đồng ý đây là ưu tiên #1 tuyệt đối. Đề xuất Độc l
 - Pilot doc: "daemon push connects mà profile không post/comment → pattern bất thường → flag risk"
 - Content engagement trước connection request = **warm outreach** → acceptance rate tăng 30-50%
 
-**→ Final: Phase 7 (Content), Phase 8 (Reddit), Phase 9 (Multi-account), Phase 10 (CDP)**
+**→ Final: Phase 8 (Content), Phase 9 (Reddit), Phase 10 (Multi-account), Phase 11 (CDP)**
+
+---
+
+#### 10. Database & LLM Infrastructure (Supabase & 9router)
+| Gemini 3.5 | Đề xuất Độc lập | Verdict |
+|---|---|---|
+| SQLite database local + Gọi trực tiếp API OpenRouter | ❌ Chưa đề cập | **Thêm mới làm Phase 2:** Chuyển sang sử dụng database online Supabase và tích hợp 9router làm local gateway để tăng tính linh hoạt và an toàn cho hệ thống. |
+
+**Lý do bổ sung:**
+* **Supabase (Database Online):** Cho phép đồng bộ dữ liệu tập trung giữa VPS Prod và môi trường Local. Điều này là **cực kỳ quan trọng** để local Agent có thể truy cập phân tích dữ liệu, tình trạng hệ thống, hành vi của lead trực tiếp và tự động đưa ra phương án tối ưu hóa (Optimize) mà không cần can thiệp SSH vào VPS.
+* **9router:** Giải quyết triệt để lỗi nghẽn Rate Limit (429) của các model free trên OpenRouter thông qua cơ chế tự động chuyển đổi sang nhà cung cấp dự phòng (auto-fallback), đồng thời giúp tiết kiệm 20-40% token nhờ tính năng nén RTK và dễ dàng thay thế nhà cung cấp (ví dụ: chuyển sang Google AI Studio) mà không cần chỉnh sửa code.
+
+**→ Final: Phase 2, thực hiện ngay sau khi có Telegram alert**
 
 ---
 
@@ -143,41 +156,43 @@ Cả hai đồng ý đây là ưu tiên #1 tuyệt đối. Đề xuất Độc l
 | Gemini 3.5 Phase | Final Phase | Thay đổi |
 |---|---|---|
 | Phase 1: Telegram | **Phase 1** | Giữ nguyên, mở rộng scope |
-| Phase 4: Self-healing | **Phase 2** | ⬆️ Lên 2 bậc |
-| Phase 5: Intent Detection | **Phase 3** | ⬆️ Lên 2 bậc, thêm `situation` |
-| Phase 3: Approval Gate | **Phase 4** | ↓ 1 bậc, thêm 4 chế độ + feedback loop |
-| Phase 7: Link Tracking | **Phase 5** | ⬆️ Lên 2 bậc, bỏ Dub.co |
-| Phase 2: Auto-withdraw | **Phase 6** (gộp) | ↓ Gộp vào Account Safety + auto-throttle |
+| *(mới)* Database & LLM Gateway | **Phase 2** | ➕ Tích hợp Supabase (DB online để Agent phân tích) và 9router (LLM Gateway) |
+| Phase 4: Self-healing | **Phase 3** | ⬆️ Lên 1 bậc |
+| Phase 5: Intent Detection | **Phase 4** | ⬆️ Lên 1 bậc, thêm `situation` |
+| Phase 3: Approval Gate | **Phase 5** | ↓ 2 bậc, thêm 4 chế độ + feedback loop |
+| Phase 7: Link Tracking | **Phase 6** | ⬆️ Lên 1 bậc, bỏ Dub.co |
+| Phase 2: Auto-withdraw | **Phase 7** (gộp) | ↓ Gộp vào Account Safety + auto-throttle |
 | Phase 6: Smart Hours | **Bỏ** | ROI quá thấp |
-| Phase 8: CDP | **Phase 10** | ↓ Cuối cùng |
-| *(mới)* Content Automation | **Phase 7** | ➕ Từ Đề xuất Độc lập |
-| *(mới)* Reddit Presence | **Phase 8** | ➕ Từ Đề xuất Độc lập |
-| *(mới)* Multi-account | **Phase 9** | ➕ Từ Đề xuất Độc lập |
-| *(mới)* Agent Feedback Loop | Gộp Phase 4 | ➕ Từ Đề xuất Độc lập |
-| *(mới)* Auto-throttle | Gộp Phase 6 | ➕ Từ Đề xuất Độc lập |
+| Phase 8: CDP | **Phase 11** | ↓ Cuối cùng |
+| *(mới)* Content Automation | **Phase 8** | ➕ Từ Đề xuất Độc lập |
+| *(mới)* Reddit Presence | **Phase 9** | ➕ Từ Đề xuất Độc lập |
+| *(mới)* Multi-account | **Phase 10** | ➕ Từ Đề xuất Độc lập |
+| *(mới)* Agent Feedback Loop | Gộp Phase 5 | ➕ Từ Đề xuất Độc lập |
+| *(mới)* Auto-throttle | Gộp Phase 7 | ➕ Từ Đề xuất Độc lập |
 
 ---
 
-## Phần II: Implementation Plan — 10 Phases, 3 Tầng
+## Phần II: Implementation Plan — 11 Phases, 3 Tầng
 
 ### Tổng quan Timeline
 
 ```
-Tầng 1 — NHÌN THẤY (Phase 1-3, ~8-10 ngày)
+Tầng 1 — NHÌN THẤY (Phase 1-4, ~10-13 ngày)
 ├── Phase 1: Telegram Notifications       ~3-4d
-├── Phase 2: Self-healing & Recovery       ~2-3d
-└── Phase 3: Intent + Situation Detection  ~3d
+├── Phase 2: Database & LLM Infrastructure ~1-2d
+├── Phase 3: Self-healing & Recovery       ~2-3d
+└── Phase 4: Intent + Situation Detection  ~3d
 
-Tầng 2 — KIỂM SOÁT (Phase 4-6, ~9-12 ngày)
-├── Phase 4: Approval Gate + Feedback Loop ~4-5d
-├── Phase 5: Link Tracking                 ~2-3d
-└── Phase 6: Account Safety                ~3-4d
+Tầng 2 — KIỂM SOÁT (Phase 5-7, ~9-12 ngày)
+├── Phase 5: Approval Gate + Feedback Loop ~4-5d
+├── Phase 6: Link Tracking                 ~2-3d
+└── Phase 7: Account Safety                ~3-4d
 
-Tầng 3 — MỞ RỘNG (Phase 7-10, ~17-24 ngày)
-├── Phase 7: Content Automation            ~5-7d
-├── Phase 8: Reddit Presence               ~5-7d
-├── Phase 9: Multi-account Support         ~3-5d
-└── Phase 10: Stelixx CDP Integration      ~4-5d
+Tầng 3 — MỞ RỘNG (Phase 8-11, ~17-24 ngày)
+├── Phase 8: Content Automation            ~5-7d
+├── Phase 9: Reddit Presence               ~5-7d
+├── Phase 10: Multi-account Support         ~3-5d
+└── Phase 11: Stelixx CDP Integration      ~4-5d
 ```
 
 ---
@@ -235,7 +250,34 @@ Tạo module `linkedin/notifications.py`:
 
 ---
 
-### Phase 2: Self-healing & Browser Recovery — "Không chết vì crash"
+### Phase 2: Database & LLM Infrastructure Upgrade — Supabase & 9router
+
+**Mục tiêu:** Đồng bộ dữ liệu tập trung qua database online Supabase phục vụ Agent phân tích local và định tuyến LLM linh hoạt qua 9router để chống lỗi 429.
+
+**Thiết kế:**
+1. **Supabase Integration:**
+   - Chuyển database backend trong Django sang PostgreSQL, kết nối với Supabase.
+   - Hỗ trợ local Agent truy cập từ xa trực tiếp vào Supabase để phân tích hội thoại, trạng thái lead và đưa ra phương án tối ưu hóa chiến dịch tự động.
+2. **9router Integration:**
+   - Cài đặt 9router local gateway trên VPS/Local.
+   - Cấu hình provider Google AI Studio (Gemini) trên 9router.
+   - Trỏ `llm_provider="openai_compatible"`, `llm_api_base="http://localhost:20128/v1"` trong cấu hình SiteConfig của OpenOutreach.
+
+**Files cần tạo/sửa:**
+- `[MODIFY]` `linkedin/django_settings.py` — cấu hình dj-database-url cho PostgreSQL
+- `[MODIFY]` `.env.example` — thêm `DATABASE_URL`
+- `[MODIFY]` `linkedin/llm.py` — đảm bảo client OpenAI compatible hỗ trợ endpoint 9router
+
+**Verification:**
+- Run `python manage.py check` → verify connection thành công tới Supabase.
+- Run test chat completion tới `localhost:20128` qua 9router → verify trả về SUCCESS không bị lỗi 429.
+- Chạy Agent local để kết nối Supabase đọc và phân tích dữ liệu thử nghiệm.
+
+**Effort:** ~1-2 ngày
+
+---
+
+### Phase 3: Self-healing & Browser Recovery — "Không chết vì crash"
 
 **Mục tiêu:** Browser crash = auto-retry, không phải FAILED ngay lập tức.
 
@@ -300,7 +342,7 @@ def is_alive(self) -> bool:
 
 ---
 
-### Phase 3: Conversation Intelligence — Intent + Situation
+### Phase 4: Conversation Intelligence — Intent + Situation
 
 **Mục tiêu:** Agent báo cáo bối cảnh, hệ thống biết khi nào cần escalate cho human.
 
@@ -395,7 +437,7 @@ Last: "This looks great, can we do a quick call this week?"
 
 ---
 
-### Phase 4: Approval Gate + Agent Feedback Loop — "Kiểm soát chất lượng"
+### Phase 5: Approval Gate + Agent Feedback Loop — "Kiểm soát chất lượng"
 
 **Mục tiêu:** Review message trước khi gửi + AI học từ corrections.
 
@@ -482,7 +524,7 @@ Inject 5 most recent `feedback_type="edited"` corrections (same campaign) vào p
 
 ---
 
-### Phase 5: Link Tracking — "Đo lường engagement"
+### Phase 6: Link Tracking — "Đo lường engagement"
 
 **Mục tiêu:** Biết lead nào click audit link.
 
@@ -546,7 +588,7 @@ def trackify_message(message: str, deal: Deal) -> str:
 
 ---
 
-### Phase 6: Account Safety — "Tự bảo vệ"
+### Phase 7: Account Safety — "Tự bảo vệ"
 
 **Mục tiêu:** Bảo vệ account proactively.
 
@@ -601,13 +643,13 @@ def auto_throttle_check(profile):
 
 ---
 
-### Phase 7: Content Automation — "Warm up trước khi cold DM"
+### Phase 8: Content Automation — "Warm up trước khi cold DM"
 
 **Mục tiêu:** Tăng profile visibility + SSI trước/song song với outreach.
 
 **Tại sao cần:** 
 * SSI "Engage with insights" = 0.7/25 → profile trông như ghost → low acceptance rate.
-* **Tài liệu tham khảo & Phân tích:** Xem thêm [Nghiên cứu Case Study Chris Donnelly về Personal Brand](file:///Users/gn/Documents/Gnoc/Github/Stelixx%20CDP/OpenOutreach/_docs/research_donnellychris_personal_brand.md) để áp dụng nguyên lý 5 trụ cột thương hiệu và hệ thống inbound leads tự động vào thiết kế prompt sinh bài viết tự động (Post Scheduler).
+* **Tài liệu tham khảo & Phân tích:** Xem thêm [Nghiên cứu Case Study Chris Donnelly về Personal Brand](./personal_brand_research.md) để áp dụng nguyên lý 5 trụ cột thương hiệu và hệ thống inbound leads tự động vào thiết kế prompt sinh bài viết tự động (Post Scheduler).
 
 **3 lớp:**
 
@@ -644,7 +686,7 @@ Day 5:   Connection request → lead đã thấy tên → "warm" connection
 
 ---
 
-### Phase 8: Reddit Presence — "Kênh GTM thứ 2"
+### Phase 9: Reddit Presence — "Kênh GTM thứ 2"
 
 **Mục tiêu:** Organic presence trên Reddit, capture inbound.
 
@@ -668,7 +710,7 @@ Day 5:   Connection request → lead đã thấy tên → "warm" connection
 
 ---
 
-### Phase 9: Multi-account Support
+### Phase 10: Multi-account Support
 
 **Mục tiêu:** Scale bằng nhiều LinkedIn accounts.
 
@@ -682,7 +724,7 @@ Day 5:   Connection request → lead đã thấy tên → "warm" connection
 
 ---
 
-### Phase 10: Stelixx CDP Integration
+### Phase 11: Stelixx CDP Integration
 
 **Mục tiêu:** 2-way data sync.
 
@@ -706,30 +748,31 @@ Day 5:   Connection request → lead đã thấy tên → "warm" connection
 | Phase | Effort | Tầng |
 |-------|--------|------|
 | 1. Telegram Notifications | 3-4d | Nhìn Thấy |
-| 2. Self-healing | 2-3d | Nhìn Thấy |
-| 3. Intent + Situation | 3d | Nhìn Thấy |
-| 4. Approval Gate + Feedback | 4-5d | Kiểm Soát |
-| 5. Link Tracking | 2-3d | Kiểm Soát |
-| 6. Account Safety | 3-4d | Kiểm Soát |
-| 7. Content Automation | 5-7d | Mở Rộng |
-| 8. Reddit Presence | 5-7d | Mở Rộng |
-| 9. Multi-account | 3-5d | Mở Rộng |
-| 10. CDP Integration | 4-5d | Mở Rộng |
-| **Tổng** | **~35-46 ngày** | |
+| 2. Database & LLM Infrastructure | 1-2d | Nhìn Thấy |
+| 3. Self-healing | 2-3d | Nhìn Thấy |
+| 4. Intent + Situation | 3d | Nhìn Thấy |
+| 5. Approval Gate + Feedback | 4-5d | Kiểm Soát |
+| 6. Link Tracking | 2-3d | Kiểm Soát |
+| 7. Account Safety | 3-4d | Kiểm Soát |
+| 8. Content Automation | 5-7d | Mở Rộng |
+| 9. Reddit Presence | 5-7d | Mở Rộng |
+| 10. Multi-account | 3-5d | Mở Rộng |
+| 11. CDP Integration | 4-5d | Mở Rộng |
+| **Tổng** | **~36-48 ngày** | |
 
 ### Go/No-Go Gates
 
 ```
 Start: Quick Wins (booking_link, seeds, campaign_objective)
   ↓
-Phase 1-3 (Tầng 1)
+Phase 1-4 (Tầng 1)
   ↓
 Gate 1: Pilot 1 tuần ổn? Acceptance ≥ 15%?
-  → Yes: Phase 4-6 (Tầng 2)
+  → Yes: Phase 5-7 (Tầng 2)
   → No:  Debug ICP, message quality, profile
   ↓
 Gate 2: Reply rate ≥ 10%? CTR ≥ 5%?
-  → Yes: Phase 7-10 (Tầng 3)
+  → Yes: Phase 8-11 (Tầng 3)
   → No:  Iterate prompt, corrections, throttle
 ```
 

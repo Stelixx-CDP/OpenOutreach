@@ -404,7 +404,7 @@ A. Differential Privacy Embeddings · B. Credential Security (Fernet) · C. PII 
 
 ## Roadmap & Geolify.ai Context
 
-### Planned Features (từ [idea_and_implementation_plan.md](file:///Users/gn/Documents/Gnoc/Github/Stelixx%20CDP/OpenOutreach/_docs/idea_and_implementation_plan.md)):
+### Planned Features (từ [gtm_implementation_plan.md](../geolify_pilot/gtm_implementation_plan.md)):
 1. **Telegram reporting & alerts** — daily report + real-time error alerts
 2. **Auto-withdraw old invites** — clean pending > 21 ngày
 3. **AI Message Approval Gate** — review/approve qua Telegram
@@ -460,13 +460,15 @@ OpenOutreach/
 ├── crm/                         # CRM app — Lead, Deal models
 │   └── models/
 ├── chat/                        # Chat app — ChatMessage model
-├── docs/                        # Official documentation
-├── _docs/                       # Internal docs (Geolify.ai planning)
+├── docs/                        # Official & Pilot documentation
+│   ├── developer/               # Core developer reference (architecture, testing, roadmaps)
+│   ├── usage/                   # Configuration, docker setup, templating guides
+│   └── geolify_pilot/           # Geolify.ai GTM pilot specific campaign assets & plans
 ├── compose/linkedin/            # Docker build context
 ├── data/                        # SQLite DB + fastembed cache
 ├── tests/                       # 21 test files, ~2900+ lines
 ├── requirements/                # Python dependencies
-├── ARCHITECTURE.md              # Architecture documentation
+├── ARCHITECTURE.md              # Architecture documentation pointer
 ├── CLAUDE.md                    # AI coding guidelines
 ├── README.md                    # Project overview
 └── docker-compose.yml           # Production compose

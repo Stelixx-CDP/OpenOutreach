@@ -37,4 +37,4 @@ Follow-up behavior is controlled by:
 The agent template receives specific named variables (`self_name`, `full_name`, `headline`,
 `current_company`, `location`, `messages_exchanged`), not the full profile dict.
 
-See the [Template Variables Reference](./template-variables.md) for the complete list.
+See the [Template Variables Reference](./template_variables.md) for the complete list.

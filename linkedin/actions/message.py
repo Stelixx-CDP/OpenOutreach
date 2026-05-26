@@ -66,12 +66,31 @@ def _find(page, key: str, timeout: int = 5000) -> Locator:
     raise PlaywrightError(f"No selector matched for '{key}'. Tried: {tried}")
 
 
+def clean_message_punctuation(message: str) -> str:
+    """Post-process message content to make it look more human.
+
+    Replaces formal em-dashes (—) and en-dashes (–) with a friendly " - " spacing,
+    preventing typical AI punctuation slop in chats.
+    """
+    if not message:
+        return message
+    # Replace em-dash (—) and en-dash (–)
+    cleaned = message.replace("—", " - ").replace("–", " - ")
+    # Replace multiple spaces with a single space if any were introduced
+    while "  " in cleaned:
+        cleaned = cleaned.replace("  ", " ")
+    return cleaned.strip()
+
+
 # ── Public entry point ────────────────────────────────────────────
 
 
 def send_raw_message(session, profile: Dict[str, Any], message: str) -> bool:
     """Send an arbitrary message to a profile. Returns True if sent."""
     public_identifier = profile.get("public_identifier")
+
+    # Apply punctuation cleaning to avoid AI-looking em-dashes
+    message = clean_message_punctuation(message)
 
     if _send_message(session, profile, message):
         return True
