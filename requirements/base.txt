@@ -10,6 +10,8 @@ pandas
 jinja2
 termcolor
 Django>=5.2,<7.0
+dj-database-url>=2.3.0
+psycopg[binary]>=3.2
 tendo
 pyyaml
 fastembed

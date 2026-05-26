@@ -62,12 +62,21 @@ TEMPLATES = [
     },
 ]
 
+import dj_database_url
+
+_SQLITE_DEFAULT = f"sqlite:///{ROOT_DIR / 'data' / 'db.sqlite3'}"
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": str(ROOT_DIR / "data" / "db.sqlite3"),
-    }
+    "default": dj_database_url.config(
+        default=_SQLITE_DEFAULT,
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
+
+# PgBouncer (Supabase pooler) doesn't support server-side cursors.
+if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
+    DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
