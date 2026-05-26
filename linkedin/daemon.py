@@ -48,6 +48,7 @@ _HANDLERS = {
 
 HEARTBEAT_INTERVAL = 300  # 5 minutes
 HEARTBEAT_SLICE = 60      # wake every minute during long sleeps
+MAX_REAUTH_ATTEMPTS = 3   # stop daemon after N consecutive re-auth failures
 
 
 # ── Cloud promo ──────────────────────────────────────────────────────
@@ -277,6 +278,7 @@ def run_daemon(session):
 
     # Single-threaded: one task at a time, no concurrent enqueuing,
     # so sleeping until the next scheduled_at is safe.
+    _reauth_failures = 0
     while True:
         pause = seconds_until_active()
         if pause > 0:
@@ -332,8 +334,21 @@ def run_daemon(session):
         except AuthenticationError:
             logger.warning("Session expired during %s — re-authenticating", task)
             _safe_notify("cookie_expired", profile=session.linkedin_profile.linkedin_username)
+            _reauth_failures += 1
+            if _reauth_failures > MAX_REAUTH_ATTEMPTS:
+                logger.error(
+                    colored("Daemon stopped — re-authentication failed %d times", "red", attrs=["bold"]),
+                    _reauth_failures,
+                )
+                _safe_notify("browser_crash", task_type=task.task_type,
+                             error=f"Re-authentication failed {_reauth_failures} consecutive times. "
+                                   f"Account may be locked or password incorrect.",
+                             campaign=session.campaign)
+                task.mark_failed()
+                return
             try:
                 session.reauthenticate()
+                _reauth_failures = 0
             except Exception:
                 logger.exception("Re-authentication failed for %s", task)
             # Either way, mark this task FAILED; reconcile will re-create a
@@ -348,6 +363,33 @@ def run_daemon(session):
             )
             _safe_notify("llm_error", error=str(e))
             return
+        except ValueError as e:
+            error_msg = str(e)
+            if any(keyword in error_msg for keyword in ("LLM_API_KEY", "AI_MODEL", "LLM_API_BASE", "LLM provider")):
+                task.mark_failed()
+                logger.error(
+                    colored("Daemon stopped — LLM configuration error", "red", attrs=["bold"])
+                    + "\n%s\nUpdate Site Configuration in Admin.", error_msg,
+                )
+                _safe_notify("llm_error", error=error_msg)
+                return
+            # Non-LLM ValueError — fall through to generic handling
+            task.mark_failed()
+            logger.exception("Task %s failed", task)
+            screenshot_bytes = None
+            try:
+                if session.page and not session.page.is_closed():
+                    screenshot_bytes = session.page.screenshot(timeout=5000)
+            except Exception:
+                pass
+            _safe_notify(
+                "browser_crash",
+                task_type=task.task_type,
+                error=error_msg,
+                screenshot=screenshot_bytes,
+                campaign=session.campaign,
+            )
+            continue
         except Exception as e:
             task.mark_failed()
             logger.exception("Task %s failed", task)
@@ -367,5 +409,6 @@ def run_daemon(session):
             continue
 
         task.mark_completed()
+        _reauth_failures = 0
         cloud_promo.maybe_log()
         rhythm.maybe_break()

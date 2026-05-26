@@ -12,6 +12,7 @@ from linkedin.conf import (
     BROWSER_LOGIN_TIMEOUT_MS,
     BROWSER_SLOW_MO,
 )
+from linkedin.exceptions import AuthenticationError
 
 logger = logging.getLogger(__name__)
 
@@ -157,15 +158,20 @@ def start_browser_session(session: "AccountSession"):
         _save_cookies(session)
         logger.info(colored("Login successful – session saved", "green", attrs=["bold"]))
     else:
-        session.page.goto(LINKEDIN_FEED_URL)
-        dismiss_comply_gate(session.page)
-        goto_page(
-            session,
-            action=lambda: None,
-            expected_url_pattern="/feed",
-            timeout=BROWSER_DEFAULT_TIMEOUT_MS,
-            error_message="Saved session invalid",
-        )
+        try:
+            session.page.goto(LINKEDIN_FEED_URL)
+            dismiss_comply_gate(session.page)
+            goto_page(
+                session,
+                action=lambda: None,
+                expected_url_pattern="/feed",
+                timeout=BROWSER_DEFAULT_TIMEOUT_MS,
+                error_message="Saved session invalid",
+            )
+        except RuntimeError as e:
+            if "Saved session invalid" in str(e):
+                raise AuthenticationError(str(e)) from e
+            raise
 
     # "domcontentloaded" — "load" waits for every subresource (analytics
     # beacons, lazy media) and on LinkedIn that event may never fire,

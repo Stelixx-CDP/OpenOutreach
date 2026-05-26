@@ -1,4 +1,10 @@
-from django.db import migrations
+from django.db import connection, migrations
+
+
+def vacuum_sqlite(apps, schema_editor):
+    if connection.vendor == "sqlite":
+        with connection.cursor() as cursor:
+            cursor.execute("VACUUM;")
 
 
 class Migration(migrations.Migration):
@@ -9,5 +15,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL("VACUUM;", reverse_sql=migrations.RunSQL.noop),
+        migrations.RunPython(vacuum_sqlite, migrations.RunPython.noop),
     ]
