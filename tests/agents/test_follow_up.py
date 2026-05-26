@@ -42,7 +42,7 @@ class TestRenderSystemPrompt:
         fake_session.self_profile = {"first_name": "Bob", "last_name": "Builder", "urn": "urn:li:fsd_profile:SELF"}
 
         recent = [_msg("Hi, what do you do?", is_outgoing=True), _msg("Sales tooling.", is_outgoing=False)]
-        prompt = _render_system_prompt(fake_session, deal_with_summaries, recent)
+        prompt = _render_system_prompt(fake_session, deal_with_summaries, recent, "Alice", "LEAD_REPLIED")
 
         # Profile facts appear under the lead-knowledge block.
         assert "Senior engineer at Acme Corp." in prompt
@@ -63,7 +63,7 @@ class TestRenderSystemPrompt:
         deal = DealFactory(lead=lead, campaign=fake_session.campaign)
         fake_session.self_profile = {"first_name": "Bob", "last_name": "Builder", "urn": "urn:li:fsd_profile:SELF"}
 
-        prompt = _render_system_prompt(fake_session, deal, [])
+        prompt = _render_system_prompt(fake_session, deal, [], None, "INITIAL_OUTREACH")
 
         # Renders without crashing and shows the empty placeholders.
         assert "(none yet)" in prompt
