@@ -81,11 +81,13 @@ The system uses Django with SQLite (by default at `data/db.sqlite3`).
 ```
 (url_only) → (enriched) → QUALIFIED → READY_TO_CONNECT → PENDING → CONNECTED → COMPLETED
   (implicit)   (implicit)   (Deal)     (GP confidence gate)  (sent)   (accepted)   (followed up)
-                                 ↓                                       ↓
-                           FAILED (LLM rejection)                   ESCALATED (Intent=high / needs_human)
+                                 ↓                                   ⇅
+                           FAILED (LLM rejection)              WAITING_APPROVAL (Approval Gate)
+                                                                     ↓
+                                                               ESCALATED (Intent=high / needs_human)
 ```
 
-Pre-Deal states are implicit: a Lead with no description is `url_only`, a Lead with description is `enriched`. `ProfileState` contains: `QUALIFIED`, `READY_TO_CONNECT`, `PENDING`, `CONNECTED`, `COMPLETED`, `FAILED`, `ESCALATED`.
+Pre-Deal states are implicit: a Lead with no description is `url_only`, a Lead with description is `enriched`. `ProfileState` contains: `QUALIFIED`, `READY_TO_CONNECT`, `PENDING`, `CONNECTED`, `WAITING_APPROVAL`, `COMPLETED`, `FAILED`, `ESCALATED`.
 
 ---
 
@@ -170,6 +172,26 @@ The follow-up agent's output passes through a multi-stage validation and retry p
 4. **Retry with Feedback** (`output_validator.py:generate_with_retry`): If validation fails, the original prompt is augmented with error feedback and the LLM is called again (max 1 retry).
 5. **Safe Fallback**: If validation still fails after retry, the decision is converted to a `wait` action (24h) and a Telegram notification is sent. No dirty message ever reaches a lead.
 6. **Hours Clamping**: `follow_up_hours` is clamped to [1, 168] to prevent LLM hallucinations (e.g. 0.01h or 9999h).
+
+### 5.6. Approval Gate & Agent Feedback Loop
+
+To maintain message quality and align the AI with the user's preferred messaging style, the system integrates a manual approval flow before messages are sent to LinkedIn leads:
+
+1. **Approval Configuration** (`Campaign.approval_mode`):
+   - `auto`: All messages are sent automatically without manual checks.
+   - `all`: Every follow-up message requires approval.
+   - `first_touch`: Only the first outgoing message of a deal requires approval.
+   - `high_intent`: Messages require approval only if the conversation's intent is medium/high or situation is `needs_human`.
+2. **Waiting Approval State**: When a message requires approval, the deal transitions to `WAITING_APPROVAL` state, and a `PendingMessage` record is created storing the message text and raw decision metadata.
+3. **Telegram Interactive Alerts**: An alert is sent to Telegram with inline action buttons (`Approve`, `Skip`, `Edit`).
+   - **Approve**: Enqueues a background `SEND_APPROVED_MESSAGE` task and records an `approved` feedback log.
+   - **Skip**: Moves the deal back to `CONNECTED` (scheduling the next check/follow-up in 24 hours) and logs `rejected` feedback.
+   - **Edit**: Instructs the user to reply to the alert message.
+4. **Textual Reply Corrections**: When the user replies to the alert message with a corrected version:
+   - The system intercepts the reply, creates an `edited` feedback record matching the original and corrected text.
+   - Updates `PendingMessage.message_text` with the corrected text, and enqueues a `SEND_APPROVED_MESSAGE` task.
+5. **Asynchronous Playwright Sending**: The `SEND_APPROVED_MESSAGE` task is processed asynchronously by the main single-threaded daemon using Playwright. This decouples slow browser interactions from the instant-response Telegram Listener thread.
+6. **In-Context Learning (Feedback Loop)**: When composing a new message, the follow-up agent queries the 5 most recent `edited` feedbacks for the campaign and feeds them into the system prompt (`follow_up_agent.j2`) as style correction examples.
 
 ---
 

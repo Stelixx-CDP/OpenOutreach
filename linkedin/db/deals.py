@@ -15,6 +15,7 @@ _STATE_LOG_STYLE = {
     ProfileState.COMPLETED: ("COMPLETED", "green", ["bold"]),
     ProfileState.FAILED: ("FAILED", "red", ["bold"]),
     ProfileState.ESCALATED: ("ESCALATED", "red", ["bold"]),
+    ProfileState.WAITING_APPROVAL: ("WAITING_APPROVAL", "yellow", ["bold"]),
 }
 
 

@@ -52,10 +52,10 @@ class Command(BaseCommand):
             ).count()
             total_connects_sent += connects_sent
 
-            # 2. Connects accepted (Deals in this campaign moved to CONNECTED/COMPLETED today)
+            # 2. Connects accepted (Deals in this campaign moved to CONNECTED/COMPLETED/ESCALATED/WAITING_APPROVAL today)
             connects_accepted = Deal.objects.filter(
                 campaign=campaign,
-                state__in=[ProfileState.CONNECTED, ProfileState.COMPLETED],
+                state__in=[ProfileState.CONNECTED, ProfileState.COMPLETED, ProfileState.ESCALATED, ProfileState.WAITING_APPROVAL],
                 update_date__range=(today_start, today_end)
             ).count()
             total_connects_accepted += connects_accepted
@@ -116,7 +116,7 @@ class Command(BaseCommand):
             hot_deals = Deal.objects.filter(
                 campaign=campaign,
                 lead_id__in=hot_lead_ids
-            ).exclude(state__in=[ProfileState.COMPLETED, ProfileState.FAILED, ProfileState.ESCALATED]).select_related("lead")
+            ).exclude(state__in=[ProfileState.COMPLETED, ProfileState.FAILED, ProfileState.ESCALATED, ProfileState.WAITING_APPROVAL]).select_related("lead")
 
             if hot_deals.exists():
                 report_lines.append("🔥 <b>Hot Leads phản hồi cần check:</b>")
@@ -124,7 +124,7 @@ class Command(BaseCommand):
                     lead_label = deal.lead.public_identifier or f"Lead#{deal.lead_id}"
                     report_lines.append(f"  - <code>{lead_label}</code> (<a href='{deal.lead.linkedin_url}'>LinkedIn</a>) - State: <code>{deal.state}</code>")
 
-            # HIGH-4: Separate section for ESCALATED deals
+            # Separate section for ESCALATED deals
             escalated_deals = Deal.objects.filter(
                 campaign=campaign,
                 state=ProfileState.ESCALATED
@@ -135,6 +135,18 @@ class Command(BaseCommand):
                 for deal in escalated_deals:
                     lead_label = deal.lead.public_identifier or f"Lead#{deal.lead_id}"
                     report_lines.append(f"  - <code>{lead_label}</code> (<a href='{deal.lead.linkedin_url}'>LinkedIn</a>) - Lý do: <i>{html.escape(deal.reason)}</i>")
+
+            # Separate section for WAITING_APPROVAL deals
+            waiting_deals = Deal.objects.filter(
+                campaign=campaign,
+                state=ProfileState.WAITING_APPROVAL
+            ).select_related("lead")
+
+            if waiting_deals.exists():
+                report_lines.append("⏳ <b>Deals chờ duyệt (WAITING_APPROVAL):</b>")
+                for deal in waiting_deals:
+                    lead_label = deal.lead.public_identifier or f"Lead#{deal.lead_id}"
+                    report_lines.append(f"  - <code>{lead_label}</code> (<a href='{deal.lead.linkedin_url}'>LinkedIn</a>)")
 
             # 9. Drill-down: Follow-up messages sent details
             sent_messages = ChatMessage.objects.filter(
@@ -173,7 +185,7 @@ class Command(BaseCommand):
         # Use creation_date (= when the Deal/connect was created), not update_date
         # which can be bumped by follow-ups or other state changes.
         accepted_7d = Deal.objects.filter(
-            state__in=[ProfileState.CONNECTED, ProfileState.COMPLETED, ProfileState.ESCALATED],
+            state__in=[ProfileState.CONNECTED, ProfileState.COMPLETED, ProfileState.ESCALATED, ProfileState.WAITING_APPROVAL],
             creation_date__range=(seven_days_ago, today_end)
         ).count()
         acceptance_rate_7d = (accepted_7d / sent_7d * 100) if sent_7d > 0 else 0.0

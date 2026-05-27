@@ -27,6 +27,7 @@ from linkedin.models import Task
 from linkedin.tasks.check_pending import handle_check_pending
 from linkedin.tasks.connect import handle_connect
 from linkedin.tasks.follow_up import handle_follow_up
+from linkedin.tasks.send_approved_message import handle_send_approved_message
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ _HANDLERS = {
     Task.TaskType.CONNECT: handle_connect,
     Task.TaskType.CHECK_PENDING: handle_check_pending,
     Task.TaskType.FOLLOW_UP: handle_follow_up,
+    Task.TaskType.SEND_APPROVED_MESSAGE: handle_send_approved_message,
 }
 
 HEARTBEAT_INTERVAL = 300  # 5 minutes

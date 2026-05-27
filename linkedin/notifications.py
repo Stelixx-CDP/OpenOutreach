@@ -35,12 +35,12 @@ def _truncate(text: str, limit: int) -> str:
     return text[: limit - 30] + "\n\n<i>…(truncated)</i>"
 
 
-def send_text(html_content: str, reply_markup: dict | None = None) -> bool:
-    """Send HTML-formatted text message to Telegram."""
+def send_text(html_content: str, reply_markup: dict | None = None) -> int | None:
+    """Send HTML-formatted text message to Telegram. Returns message_id if successful, else None."""
     token, chat_id = _get_token(), _get_chat_id()
     if not token or not chat_id:
         logger.debug("Telegram credentials not configured — skipping notification")
-        return False
+        return None
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
@@ -54,10 +54,13 @@ def send_text(html_content: str, reply_markup: dict | None = None) -> bool:
     try:
         response = requests.post(url, json=payload, timeout=10)
         response.raise_for_status()
-        return True
+        res_json = response.json()
+        if res_json.get("ok"):
+            return res_json.get("result", {}).get("message_id")
+        return None
     except Exception as e:
         logger.error("Failed to send Telegram message: %s", e)
-        return False
+        return None
 
 
 def send_photo(photo_bytes: bytes, caption: str) -> bool:
@@ -183,6 +186,38 @@ def notify(event_type: str, **kwargs) -> None:
             ]
         }
         send_text(msg, reply_markup=reply_markup)
+
+    elif event_type == "pending_approval":
+        pending_message = kwargs.get("pending_message")
+        if pending_message:
+            deal = pending_message.deal
+            public_id = deal.lead.public_identifier
+            msg_text = pending_message.message_text
+            escaped_text = html.escape(msg_text)
+            
+            msg = (
+                f"⏳ <b>[{campaign_name}] CHỜ DUYỆT TIN NHẮN (APPROVAL GATE)</b>\n"
+                f"• <b>Lead:</b> <code>{public_id}</code>\n"
+                f"• <b>Tin nhắn dự kiến gửi:</b>\n"
+                f"<i>\"{escaped_text}\"</i>"
+            )
+            
+            reply_markup = {
+                "inline_keyboard": [
+                    [
+                        {"text": "✅ Duyệt & Gửi", "callback_data": f"approve:{pending_message.id}"},
+                        {"text": "🚫 Bỏ qua", "callback_data": f"skip:{pending_message.id}"}
+                    ],
+                    [
+                        {"text": "✏️ Sửa tin", "callback_data": f"edit_req:{pending_message.id}"}
+                    ]
+                ]
+            }
+            
+            message_id = send_text(msg, reply_markup=reply_markup)
+            if message_id:
+                pending_message.telegram_message_id = message_id
+                pending_message.save(update_fields=["telegram_message_id"])
 
 
 def safe_notify(event_type: str, **kwargs) -> None:

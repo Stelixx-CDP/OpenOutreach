@@ -26,10 +26,11 @@ def setup_telegram_env(monkeypatch):
 def test_send_text_success(mock_post):
     """Test send_text successfully sends HTML message to Telegram."""
     mock_post.return_value.status_code = 200
+    mock_post.return_value.json.return_value = {"ok": True, "result": {"message_id": 123}}
 
-    success = send_text("<b>Hello World</b>")
+    message_id = send_text("<b>Hello World</b>")
 
-    assert success is True
+    assert message_id == 123
     mock_post.assert_called_once()
     args, kwargs = mock_post.call_args
     assert args[0].endswith("/sendMessage")
@@ -42,11 +43,12 @@ def test_send_text_success(mock_post):
 def test_send_text_truncates_long_messages(mock_post):
     """Test send_text truncates messages exceeding Telegram's 4096 char limit."""
     mock_post.return_value.status_code = 200
+    mock_post.return_value.json.return_value = {"ok": True, "result": {"message_id": 123}}
 
     long_text = "A" * 5000
-    success = send_text(long_text)
+    message_id = send_text(long_text)
 
-    assert success is True
+    assert message_id == 123
     sent_text = mock_post.call_args[1]["json"]["text"]
     assert len(sent_text) <= 4096
     assert "…(truncated)" in sent_text

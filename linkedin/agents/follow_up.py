@@ -146,6 +146,24 @@ def _load_recent_messages(deal, limit: int = RECENT_MESSAGES_WINDOW) -> list:
     return list(reversed(list(qs)))
 
 
+def _load_recent_corrections(campaign) -> list:
+    """Load up to 5 recent EDITED feedback entries for in-context learning."""
+    from linkedin.models import AgentFeedback
+    feedbacks = (
+        AgentFeedback.objects
+        .filter(campaign=campaign, feedback_type=AgentFeedback.FeedbackType.EDITED)
+        .order_by("-created_at")[:5]
+    )
+    return [
+        {
+            "original": fb.original_message,
+            "corrected": fb.corrected_message,
+        }
+        for fb in feedbacks
+    ]
+
+
+
 
 def _get_self_name(session) -> str:
     """Return the seller's display name from session profile."""
@@ -162,6 +180,7 @@ def _render_system_prompt(
     recent_messages: list,
     lead_first_name_safe: str | None,
     conversation_mode: str,
+    recent_corrections: list = None,
 ) -> str:
     """Render the agent system prompt from the Jinja2 template."""
     from django.utils import timezone
@@ -190,6 +209,7 @@ def _render_system_prompt(
         today=now.strftime("%Y-%m-%d"),
         days_since_last_outgoing=_days_since_last_outgoing(recent_messages, now),
         unanswered_outgoing=_count_unanswered_outgoing(recent_messages),
+        recent_corrections=recent_corrections or [],
     )
 
 
@@ -223,8 +243,11 @@ def run_follow_up_agent(session, deal) -> FollowUpDecision:
     # Compute conversation mode
     mode = compute_conversation_mode(recent)
     
+    # Load recent corrections
+    recent_corrections = _load_recent_corrections(deal.campaign)
+    
     system_prompt = _render_system_prompt(
-        session, deal, recent, lead_first_name_safe, mode.value
+        session, deal, recent, lead_first_name_safe, mode.value, recent_corrections
     )
 
     decision = generate_with_retry(

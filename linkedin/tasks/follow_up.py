@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 MIN_DAYS_PER_UNANSWERED = 3
 
 
-def _build_send_profile(deal) -> dict:
+def build_send_profile(deal) -> dict:
     """Minimal profile dict for ``send_raw_message`` and its fallbacks.
 
     Populated from the Lead row — all three send strategies (popup,
@@ -52,6 +52,31 @@ def _too_soon_to_nudge(deal) -> bool:
     return timezone.now() - last.creation_date < required
 
 
+def should_require_approval(deal, decision) -> bool:
+    """Determine if the calculated decision requires human approval."""
+    if decision.action != "send_message":
+        return False
+
+    mode = deal.campaign.approval_mode
+    if mode == "auto":
+        return False
+    if mode == "all":
+        return True
+    if mode == "first_touch":
+        from chat.models import ChatMessage
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(type(deal.lead))
+        has_outgoing = ChatMessage.objects.filter(
+            content_type=ct,
+            object_id=deal.lead_id,
+            is_outgoing=True
+        ).exists()
+        return not has_outgoing
+    if mode == "high_intent":
+        return decision.intent in ["high", "medium"] or decision.situation == "needs_human"
+    return False
+
+
 def handle_follow_up(task, session, qualifiers):
     from crm.models import Deal
     from linkedin.actions.message import send_raw_message
@@ -60,6 +85,7 @@ def handle_follow_up(task, session, qualifiers):
     from linkedin.db.summaries import materialize_profile_summary_if_missing
     from linkedin.enums import ProfileState
     from linkedin.tasks.scheduler import enqueue_follow_up
+
 
     payload = task.payload
     public_id = payload["public_id"]
@@ -97,9 +123,33 @@ def handle_follow_up(task, session, qualifiers):
     materialize_profile_summary_if_missing(deal, session)
     decision = run_follow_up_agent(session, deal)
 
-    profile = _build_send_profile(deal)
+    if should_require_approval(deal, decision):
+        from linkedin.models import PendingMessage
+        pending = PendingMessage.objects.create(
+            deal=deal,
+            message_text=decision.message,
+            decision_json={
+                "action": decision.action,
+                "message": decision.message,
+                "outcome": decision.outcome,
+                "follow_up_hours": decision.follow_up_hours,
+                "intent": decision.intent,
+                "situation": decision.situation,
+            }
+        )
+        set_profile_state(session, public_id, ProfileState.WAITING_APPROVAL.value, reason="waiting_approval")
+        
+        from linkedin.notifications import safe_notify
+        safe_notify(
+            "pending_approval",
+            pending_message=pending,
+            campaign=deal.campaign,
+        )
+        return
 
-    # HIGH-3: Only escalate if action is NOT mark_completed
+    profile = build_send_profile(deal)
+
+    # Only escalate if action is NOT mark_completed
     should_escalate = (
         decision.intent == "high" or decision.situation == "needs_human"
     ) and decision.action != "mark_completed"
@@ -108,7 +158,7 @@ def handle_follow_up(task, session, qualifiers):
         reason = f"intent={decision.intent}, situation={decision.situation}"
         set_profile_state(session, public_id, ProfileState.ESCALATED.value, reason=reason)
 
-        # MED-3: Fetch last incoming message text for Telegram notification
+        # Fetch last incoming message text for Telegram notification
         from chat.models import ChatMessage
         from django.contrib.contenttypes.models import ContentType
         ct = ContentType.objects.get_for_model(type(deal.lead))

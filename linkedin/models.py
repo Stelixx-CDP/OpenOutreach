@@ -83,6 +83,16 @@ class Campaign(models.Model):
     action_fraction = models.FloatField(default=0.2)
     seed_public_ids = models.JSONField(default=list, blank=True)
     model_blob = models.BinaryField(null=True, blank=True)
+    approval_mode = models.CharField(
+        max_length=20,
+        choices=[
+            ("auto", "Auto — AI gửi tự do"),
+            ("first_touch", "First Touch — Approve tin đầu tiên"),
+            ("high_intent", "High Intent — Approve khi intent ≥ medium hoặc needs_human"),
+            ("all", "All — Approve mọi tin nhắn"),
+        ],
+        default="auto",
+    )
 
     def __str__(self):
         return self.name
@@ -244,6 +254,8 @@ class Task(models.Model):
         CONNECT = "connect"
         CHECK_PENDING = "check_pending"
         FOLLOW_UP = "follow_up"
+        SEND_APPROVED_MESSAGE = "send_approved_message"
+
 
     class Status(models.TextChoices):
         PENDING = "pending"
@@ -251,7 +263,7 @@ class Task(models.Model):
         COMPLETED = "completed"
         FAILED = "failed"
 
-    task_type = models.CharField(max_length=20, choices=TaskType.choices)
+    task_type = models.CharField(max_length=30, choices=TaskType.choices)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     scheduled_at = models.DateTimeField()
     payload = models.JSONField(default=dict)
@@ -283,3 +295,32 @@ class Task(models.Model):
     def mark_failed(self):
         self.status = self.Status.FAILED
         self.save(update_fields=["status"])
+
+
+class PendingMessage(models.Model):
+    deal = models.OneToOneField("crm.Deal", on_delete=models.CASCADE, related_name="pending_message")
+    message_text = models.TextField()
+    decision_json = models.JSONField()  # Store raw decision details (follow_up_hours, intent, situation...)
+    telegram_message_id = models.IntegerField(null=True, blank=True, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "linkedin"
+
+
+class AgentFeedback(models.Model):
+    class FeedbackType(models.TextChoices):
+        APPROVED = "approved", "Approved"
+        EDITED = "edited", "Edited"
+        REJECTED = "rejected", "Rejected"
+
+    campaign = models.ForeignKey("Campaign", on_delete=models.CASCADE, related_name="feedbacks")
+    deal = models.ForeignKey("crm.Deal", on_delete=models.SET_NULL, null=True, blank=True)
+    original_message = models.TextField()
+    corrected_message = models.TextField(blank=True, default="")
+    feedback_type = models.CharField(max_length=20, choices=FeedbackType.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "linkedin"
+

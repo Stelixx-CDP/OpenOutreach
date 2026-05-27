@@ -9,4 +9,6 @@ class ProfileState(StrEnum):
     COMPLETED = "Completed"
     FAILED = "Failed"
     ESCALATED = "Escalated"
+    WAITING_APPROVAL = "Waiting Approval"
+
 
