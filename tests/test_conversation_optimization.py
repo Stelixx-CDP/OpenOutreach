@@ -118,10 +118,140 @@ def test_validate_message():
 
     # Rule 5: em-dash
     ok, reason = validate_message(
-        "We help with visibility—specifically AI search results.",
+        "We help with visibility\u2014specifically AI search results.",
         "INITIAL_OUTREACH",
         "Grant",
         "Cong"
     )
     assert not ok
     assert "em-dash" in reason.lower()
+
+
+# ---- New tests for audit fixes (MED-7) ----
+
+class TestForbiddenWordBoundary:
+    """BUG-2: Forbidden words should use word boundaries, not substring match."""
+
+    def test_seam_should_pass(self):
+        """'seam' is NOT 'seamless' - should not trigger forbidden word."""
+        ok, reason = validate_message(
+            "There's a seam in the market we can address.",
+            "INITIAL_OUTREACH",
+            "Grant",
+            "Cong"
+        )
+        assert ok, f"'seam' should not match forbidden word 'seamless'. Reason: {reason}"
+
+    def test_seamless_should_fail(self):
+        """'seamless' IS a forbidden word - should trigger."""
+        ok, reason = validate_message(
+            "We offer a seamless integration.",
+            "INITIAL_OUTREACH",
+            "Grant",
+            "Cong"
+        )
+        assert not ok
+        assert "forbidden word" in reason.lower()
+
+    def test_leverage_exact_should_fail(self):
+        """'leverage' is an exact forbidden word - should trigger."""
+        ok, reason = validate_message(
+            "We leverage AI to help.",
+            "INITIAL_OUTREACH",
+            "Grant",
+            "Cong"
+        )
+        assert not ok
+        assert "forbidden word" in reason.lower()
+
+    def test_robust_in_middle_of_word_should_pass(self):
+        """A word containing 'robust' as substring should NOT trigger if not at word boundary."""
+        ok, reason = validate_message(
+            "We test corrobustly across all platforms.",
+            "INITIAL_OUTREACH",
+            "Grant",
+            "Cong"
+        )
+        assert ok, f"Substring 'robust' inside another word should not match. Reason: {reason}"
+
+
+class TestEnDash:
+    """MED-5: En-dash should be rejected alongside em-dash."""
+
+    def test_en_dash_rejected(self):
+        ok, reason = validate_message(
+            "We help with visibility\u2013specifically AI search results.",
+            "INITIAL_OUTREACH",
+            "Grant",
+            "Cong"
+        )
+        assert not ok
+        assert "en-dash" in reason.lower()
+
+    def test_regular_hyphen_allowed(self):
+        ok, reason = validate_message(
+            "We help with visibility - specifically AI search results.",
+            "INITIAL_OUTREACH",
+            "Grant",
+            "Cong"
+        )
+        assert ok
+
+
+class TestFollowUpHoursClamp:
+    """MED-1: follow_up_hours should be clamped to [1, 168]."""
+
+    def test_clamp_low(self):
+        from linkedin.agents.follow_up import FollowUpDecision
+        d = FollowUpDecision(action="wait", follow_up_hours=0.01)
+        assert d.follow_up_hours == 1.0
+
+    def test_clamp_high(self):
+        from linkedin.agents.follow_up import FollowUpDecision
+        d = FollowUpDecision(action="wait", follow_up_hours=9999)
+        assert d.follow_up_hours == 168.0
+
+    def test_normal_value_unchanged(self):
+        from linkedin.agents.follow_up import FollowUpDecision
+        d = FollowUpDecision(action="wait", follow_up_hours=24)
+        assert d.follow_up_hours == 24.0
+
+    def test_boundary_1(self):
+        from linkedin.agents.follow_up import FollowUpDecision
+        d = FollowUpDecision(action="wait", follow_up_hours=1)
+        assert d.follow_up_hours == 1.0
+
+    def test_boundary_168(self):
+        from linkedin.agents.follow_up import FollowUpDecision
+        d = FollowUpDecision(action="wait", follow_up_hours=168)
+        assert d.follow_up_hours == 168.0
+
+
+class TestValidateMessageAccumulatesErrors:
+    """HIGH-2: validate_message should accumulate all errors, not early-return."""
+
+    def test_multiple_errors_accumulated(self):
+        """NO_REPLY_BUMP with greeting + forbidden word + em-dash should report all."""
+        ok, reason = validate_message(
+            "Hey, let's leverage our seamless\u2014integration!",
+            "NO_REPLY_BUMP",
+            None,
+            "Cong"
+        )
+        assert not ok
+        # Should contain multiple error indicators separated by ' | '
+        assert " | " in reason
+        assert "greeting" in reason.lower()
+        assert "forbidden word" in reason.lower()
+        assert "em-dash" in reason.lower()
+
+    def test_single_error_no_separator(self):
+        """A single error should NOT have the ' | ' separator."""
+        ok, reason = validate_message(
+            "We offer a seamless integration for your team.",
+            "INITIAL_OUTREACH",
+            "Grant",
+            "Cong"
+        )
+        assert not ok
+        assert " | " not in reason  # Only one error, no separator

@@ -154,24 +154,22 @@ Browser actions that orchestrate the browser via Playwright:
   - `profile_summary`: Scrapes profile facts on first follow-up.
   - `chat_summary`: Extracts conversation facts incrementally and reconciles them via an LLM update prompt (ADD/UPDATE/DELETE/NONE actions).
 
-### 5. Agents (`linkedin/agents/`)
-- `follow_up.py`: Prepares conversation context (profile facts, chat summaries, and last 6 messages) and calls the LLM with the `follow_up_agent.j2` prompt. Returns a `FollowUpDecision` (action: send_message/wait/mark_completed).
+### 5.5. Conversation Optimization Pipeline
 
----
+The follow-up agent's output passes through a multi-stage validation and retry pipeline before any message reaches a lead:
 
-## 7. Smart Rate Limiting
-
-The daemon respects daily and weekly limits to protect your LinkedIn account:
-
-| Dimension | Default Limit | Reference |
-|---|---|---|
-| Daily Connection Requests | 20 | `LinkedInProfile.connect_daily_limit` |
-| Weekly Connection Requests | 100 | `LinkedInProfile.connect_weekly_limit` |
-| Daily Follow-up DMs | 30 | `LinkedInProfile.follow_up_daily_limit` |
-| Active Hours Window | 9:00 - 19:00 | `conf.py:ENABLE_ACTIVE_HOURS` |
-| Rest Days | Sat + Sun | `conf.py:REST_DAYS` |
-| Work Burst Duration | 45 - 65 minutes | `conf.py:burst_min/max_seconds` |
-| Break Duration | 10 - 20 minutes | `conf.py:break_min/max_seconds` |
+1. **Conversation Mode Detection** (`agents/conversation_mode.py`): Classifies the conversation as `INITIAL_OUTREACH`, `LEAD_REPLIED`, or `NO_REPLY_BUMP` based on the last message direction.
+2. **Name Safety** (`agents/name_safety.py`): Extracts a verified first name from the lead's profile, guarding against using the seller's own name or unverified names.
+3. **Output Validation** (`agents/output_validator.py`): Checks the LLM-generated message against rules:
+   - No greetings in `NO_REPLY_BUMP` or `LEAD_REPLIED` modes.
+   - Name correctness (not the seller's name, must be verified).
+   - Forbidden corporate jargon (word-boundary matching to prevent substring false positives).
+   - No em-dashes or en-dashes.
+   - Word count cap for bumps (<= 20 words).
+   - All violations are accumulated in a single pass so the retry prompt can address everything at once.
+4. **Retry with Feedback** (`output_validator.py:generate_with_retry`): If validation fails, the original prompt is augmented with error feedback and the LLM is called again (max 1 retry).
+5. **Safe Fallback**: If validation still fails after retry, the decision is converted to a `wait` action (24h) and a Telegram notification is sent. No dirty message ever reaches a lead.
+6. **Hours Clamping**: `follow_up_hours` is clamped to [1, 168] to prevent LLM hallucinations (e.g. 0.01h or 9999h).
 
 ---
 
@@ -179,4 +177,10 @@ The daemon respects daily and weekly limits to protect your LinkedIn account:
 
 - **Fail-Fast**: The daemon crashes on unexpected exceptions. Only expected network or rate limit errors are caught.
 - **Diagnostics**: `failure_diagnostics()` captures screenshots, page DOM content, and tracebacks into `/tmp/openoutreach-diagnostics/` when a task fails.
-- **Browser Recovery**: Browser crashes trigger session cleanup and page re-instantiation before retrying the task.
+- **Browser Recovery (Phase 3)**: Browser crashes are detected and recovered automatically:
+  - `AccountSession.is_alive()` runs a trivial JS evaluation (`1 + 1`) to check browser health before claiming new tasks.
+  - If the browser is unresponsive, `session.close()` cleans up the dead session before proceeding.
+  - Task handlers are wrapped in a retry loop (max 2 retries) for Playwright errors (`TargetClosedError`, `TimeoutError`, `Error`).
+  - Each retry: log warning, close session, `ensure_browser()` to re-launch Chrome, re-run handler.
+  - If all retries fail: capture screenshot, send Telegram alert via `safe_notify("browser_crash", ...)`, mark task as `FAILED`.
+

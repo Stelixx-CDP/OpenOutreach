@@ -47,6 +47,9 @@ class FollowUpDecision(BaseModel):
             raise ValueError("message is required when action='send_message'")
         if self.action == "mark_completed" and not self.outcome:
             raise ValueError("outcome is required when action='mark_completed'")
+        # Clamp follow_up_hours to [1, 168] to prevent LLM hallucinating
+        # extreme values (e.g. 0.01h or 9999h).
+        self.follow_up_hours = max(1.0, min(self.follow_up_hours, 168.0))
         return self
 
 
@@ -134,6 +137,15 @@ def _load_recent_messages(deal, limit: int = RECENT_MESSAGES_WINDOW) -> list:
 
 
 
+def _get_self_name(session) -> str:
+    """Return the seller's display name from session profile."""
+    self_prof = session.self_profile
+    return (
+        f"{self_prof.get('first_name', '')} {self_prof.get('last_name', '')}".strip()
+        or session.django_user.username
+    )
+
+
 def _render_system_prompt(
     session,
     deal,
@@ -148,8 +160,7 @@ def _render_system_prompt(
     template = env.get_template("follow_up_agent.j2")
 
     campaign = deal.campaign
-    self_prof = session.self_profile
-    self_name = f"{self_prof.get('first_name', '')} {self_prof.get('last_name', '')}".strip() or session.django_user.username
+    self_name = _get_self_name(session)
 
     # Retrieve lead's name from profile summary
     profile_sum = deal.profile_summary or {}
@@ -206,16 +217,13 @@ def run_follow_up_agent(session, deal) -> FollowUpDecision:
         session, deal, recent, lead_first_name_safe, mode.value
     )
 
-    self_prof = session.self_profile
-    self_name = f"{self_prof.get('first_name', '')} {self_prof.get('last_name', '')}".strip() or session.django_user.username
-
     decision = generate_with_retry(
         session=session,
         deal=deal,
         system_prompt=system_prompt,
         conversation_mode=mode.value,
         lead_first_name_safe=lead_first_name_safe,
-        seller_name=self_name,
+        seller_name=_get_self_name(session),
     )
 
     logger.info("follow_up agent for %s: %s", public_id, decision.action)

@@ -290,6 +290,13 @@ def run_daemon(session):
             rhythm.reset()
             continue
 
+        if session.page and not session.is_alive():
+            logger.warning("Browser is dead/unresponsive during health check — closing session to recover")
+            try:
+                session.close()
+            except Exception as e:
+                logger.debug("Error closing unresponsive session: %s", e)
+
         task = Task.objects.claim_next()
         if task is None:
             # Nothing ready — reconcile the queue from CRM state. Any deal
@@ -328,9 +335,30 @@ def run_daemon(session):
             task.mark_failed()
             continue
 
+        from playwright.sync_api import Error as PlaywrightError
+        MAX_BROWSER_RETRIES = 2
         try:
-            with failure_diagnostics(session):
-                handler(task, session, qualifiers)
+            for attempt in range(MAX_BROWSER_RETRIES + 1):
+                try:
+                    with failure_diagnostics(session):
+                        handler(task, session, qualifiers)
+                    break
+                except (PlaywrightError, TimeoutError) as e:
+                    if attempt < MAX_BROWSER_RETRIES:
+                        logger.warning(
+                            "Browser/Playwright error during task %s (attempt %d/%d): %s. Re-launching session...",
+                            task, attempt + 1, MAX_BROWSER_RETRIES, e
+                        )
+                        try:
+                            session.close()
+                        except Exception:
+                            pass
+                        try:
+                            session.ensure_browser()
+                        except Exception as re_err:
+                            logger.exception("Failed to re-initialize browser session: %s", re_err)
+                    else:
+                        raise
         except AuthenticationError:
             logger.warning("Session expired during %s — re-authenticating", task)
             _safe_notify("cookie_expired", profile=session.linkedin_profile.linkedin_username)

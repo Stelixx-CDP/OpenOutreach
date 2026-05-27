@@ -50,6 +50,17 @@ class AccountSession:
         else:
             self._maybe_refresh_cookies()
 
+    def is_alive(self) -> bool:
+        """Check if the browser and page are still alive and responsive."""
+        if not self.page or self.page.is_closed():
+            return False
+        try:
+            self.page.evaluate("1 + 1")
+            return True
+        except Exception as e:
+            logger.warning("Browser health check failed: %s", e)
+            return False
+
     @cached_property
     def self_profile(self) -> dict:
         """Authenticated user's profile dict, fetched once per session.

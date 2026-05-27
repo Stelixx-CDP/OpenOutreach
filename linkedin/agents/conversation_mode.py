@@ -11,6 +11,6 @@ def compute_conversation_mode(messages: Sequence) -> ConversationMode:
         return ConversationMode.INITIAL_OUTREACH
     last = messages[-1]
     # is_outgoing=False nghĩa là tin nhắn được nhận từ lead (incoming)
-    if not getattr(last, 'is_outgoing', True):  
+    if not last.is_outgoing:
         return ConversationMode.LEAD_REPLIED
     return ConversationMode.NO_REPLY_BUMP
