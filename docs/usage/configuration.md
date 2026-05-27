@@ -28,6 +28,7 @@ Django Admin (`/admin/`) or created during interactive onboarding.
 | `booking_link` | string | URL included in follow-up messages when suggesting a meeting. |
 | `is_freemium` | boolean | Whether this is a freemium campaign (uses KitQualifier instead of BayesianQualifier). |
 | `action_fraction` | float | Target fraction of total connections for freemium campaigns. |
+| `approval_mode` | string/choice | Messaging approval mode: `auto` (send directly), `all` (requires approval), `first_touch` (approve first DM only), `high_intent` (approve on medium/high intent or `needs_human` situation). |
 
 ## Account Settings (Django Model)
 
@@ -40,7 +41,8 @@ Django Admin or created during interactive onboarding.
 | `linkedin_password` | string | LinkedIn password. | (required) |
 | `active` | boolean | Enable/disable this account. | `true` |
 | `subscribe_newsletter` | boolean | Receive OpenOutreach updates. | `true` |
-| `connect_daily_limit` | integer | Max connection requests per day. | `20` |
+| `connect_daily_limit` | integer | Max connection requests per day. This limit is dynamically throttled and recovered. | `20` |
+| `original_connect_daily_limit` | integer | Original connection daily limit. Used as the recovery cap during auto-throttle logic. | `20` |
 | `connect_weekly_limit` | integer | Max connection requests per week. | `100` |
 | `follow_up_daily_limit` | integer | Max follow-up messages per day. | `30` |
 | `legal_accepted` | boolean | Whether the user accepted the legal notice. | `false` |

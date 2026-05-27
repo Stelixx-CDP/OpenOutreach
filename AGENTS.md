@@ -48,6 +48,10 @@ For detailed module docs, see `ARCHITECTURE.md`.
   - `linkedin/agents/output_validator.py`: Validates follow-up messages (stops greeting repetition, bans em-dashes, enforces word counts for bumps) and triggers auto-retry loops on LLM failures.
   - **Escalation**: AI classifies conversation with `intent` (high/medium/low) and `situation` (engaging/curious/needs_human/objecting/cold). If `intent == "high"` or `situation == "needs_human"`, and action is not `mark_completed`, the deal state transitions to `ESCALATED`, a Telegram alert is sent with an inline link to open chat, and automation is paused until manual transition back to `CONNECTED` (e.g. via Django Admin).
   - **Approval Gate & Agent Feedback Loop**: Intercepts follow-up messages based on `Campaign.approval_mode` (auto, all, first_touch, high_intent). Deals transition to `WAITING_APPROVAL`, and `PendingMessage` holds the proposed message. The admin can approve, skip, or edit it via Telegram inline buttons or reply messages. Message edits save `AgentFeedback` (original vs corrected message) which are loaded as in-context style corrections (up to 5 recent EDITED items) in the prompt templates.
+  - **Account Safety & Protection**: 
+    - **Auto-throttle Connect Limits**: Dynamically halves `connect_daily_limit` (floor 5) if the 7-day acceptance rate falls below 15%; recovers (+2 per check, up to `original_connect_daily_limit`) if the rate exceeds 30%. Run at most once every 24 hours.
+    - **Auto-withdraw Old Invitations**: Playwright UI action (`withdraw_old_invitations`) that navigates to the sent invitation manager, identifies pending invites older than 3 weeks, and withdraws them (up to 10 per batch, 3-5s delays).
+    - **Weekly Task Scheduling**: The centralized scheduler (`reconcile`) seeds one `withdraw_old_invites` task per profile, running it immediately or scheduling the next precisely 7 days after the last completed run.
 
 
 - **Django apps**: `linkedin` (main — Campaign with users M2M), `crm` (Lead with embedding/Deal), `chat` (ChatMessage).

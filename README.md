@@ -157,7 +157,7 @@ Then open:
 | 🎯 **Bayesian Active Learning**    | Gaussian Process model on profile embeddings learns your ideal customer via explore/exploit, selecting the most informative candidates for LLM qualification. |
 | 🤖 **Stealth Browser Automation**  | Playwright + stealth plugins mimic real user behavior for undetectable interactions.                                 |
 | 🛡️ **Voyager API Scraping**       | Uses LinkedIn's internal API for accurate, structured profile data (no fragile HTML parsing).                        |
-| 🔄 **Stateful Pipeline**          | Tracks profile states (`QUALIFIED` → `READY_TO_CONNECT` → `PENDING` → `CONNECTED` → `COMPLETED`) in a local DB — fully resumable. |
+| 🔄 **Stateful Pipeline**          | Tracks profile states (`QUALIFIED` → `READY_TO_CONNECT` → `PENDING` → `CONNECTED` → `COMPLETED / FAILED / ESCALATED / WAITING_APPROVAL`) in a local DB — fully resumable. |
 | ⏱️ **Smart Rate Limiting**        | Configurable daily/weekly limits per action type, respects LinkedIn's own limits automatically.                      |
 | 💾 **Built-in CRM**               | Full data ownership via DjangoCRM with Django Admin UI — browse Leads, Contacts, Companies, and Deals.              |
 | 🐳 **One-Command Deployment**      | Dockerized setup with interactive onboarding and VNC browser view (`localhost:5900`).                                |
@@ -167,13 +167,15 @@ Then open:
 
 ## 📖 How the ML Pipeline Works
 
-The daemon runs a continuous **task queue** backed by a persistent `Task` model. Three task types self-schedule follow-on work:
+The daemon runs a continuous **task queue** backed by a persistent `Task` model. Five task types self-schedule follow-on work:
 
 | Task Type | What it does |
 |-----------|-------------|
 | **Connect** | Ranks qualified profiles by GP model probability, sends connection requests (daily + weekly limits). Triggers qualification and search via composable generators when the pool is empty. |
 | **Check Pending** | Checks if a pending request was accepted (exponential backoff per profile) |
 | **Follow Up** | Runs an AI agent that manages multi-turn conversations with connected profiles |
+| **Send Approved Message** | Asynchronously sends a follow-up message that has been approved or edited by the admin via Telegram or Django Admin |
+| **Withdraw Old Invites** | Weekly task that checks pending sent invitations and withdraws those older than 3 weeks to protect account health |
 
 **The qualification loop in detail:**
 

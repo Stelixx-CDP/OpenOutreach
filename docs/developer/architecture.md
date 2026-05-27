@@ -198,9 +198,9 @@ To maintain message quality and align the AI with the user's preferred messaging
 To protect LinkedIn profiles from being flagged, the system implements three proactive protection features:
 
 1. **Auto-throttle Connect Limits**:
-   - Dynamically calculated via `compute_acceptance_rate_7d(profile) -> float` at most once every 24 hours during idle daemon cycles, based on sent `ActionLog` CONNECT entries and accepted `Deal` counts over the last 7 days.
+   - Dynamically calculated via `compute_acceptance_rate_7d(profile) -> Optional[float]` at most once every 24 hours during idle daemon cycles, based on sent `ActionLog` CONNECT entries and accepted `Deal` counts over the last 7 days. If `sent_7d == 0`, it returns `None` to skip the check, preventing false positives.
    - Throttling activates if the 7-day acceptance rate falls below 15%: the profile's `connect_daily_limit` is halved (with a floor of 5) and a warning Telegram notification is sent.
-   - Recovery triggers if the 7-day rate exceeds 30% and the current limit is lower than `original_connect_daily_limit`: the daily limit is gradually restored (+2 per check, up to the original value) and an informational notification is sent.
+   - Recovery triggers if the 7-day rate exceeds 30% and the current limit is lower than `original_connect_daily_limit` (which dynamically syncs if `connect_daily_limit` is manually increased): the daily limit is gradually restored (+2 per check, up to the original value) and an informational notification is sent.
 2. **Auto-withdraw Old Invitations**:
    - Playwright-driven UI action `withdraw_old_invitations(session) -> int` navigates to `https://www.linkedin.com/mynetwork/invitation-manager/sent/`.
    - It identifies pending sent invitations older than 3 weeks (e.g. matching "3 weeks ago", "4 weeks ago", "month", "year") and withdraws them (up to 10 per run, with random 3-5s delays).

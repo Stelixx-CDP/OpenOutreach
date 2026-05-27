@@ -11,14 +11,25 @@ logger = logging.getLogger(__name__)
 
 SELECTORS = {
     "invitation_card": (
+        "li:has-text('Withdraw'), "
+        "div[class*='invitation-card']:has-text('Withdraw'), "
         ".invitation-card, "
-        ".mn-invitation-card, "
-        "li:has(button:has-text('Withdraw')), "
-        "div[class*='invitation-card']:has(button:has-text('Withdraw'))"
+        ".mn-invitation-card"
     ),
-    "withdraw_button": "button:has-text('Withdraw'), button[aria-label*='Withdraw']",
+    "withdraw_button": (
+        "button:has-text('Withdraw'), "
+        "a:has-text('Withdraw'), "
+        "span:has-text('Withdraw'), "
+        "[role='button']:has-text('Withdraw'), "
+        "button[aria-label*='Withdraw']"
+    ),
     "dialog": "div[role='dialog'], .artdeco-modal, .ip-fuse-limit-alert",
-    "dialog_confirm": "button:has-text('Withdraw'), button.artdeco-button--primary, button:has-text('Confirm')",
+    "dialog_confirm": (
+        "button:has-text('Withdraw'), "
+        "button.artdeco-button--primary, "
+        "button:has-text('Confirm'), "
+        "button:has-text('Yes')"
+    ),
 }
 
 
@@ -51,11 +62,22 @@ def withdraw_old_invitations(session: "AccountSession") -> int:
     page.goto(sent_url)
     session.wait()  # Allow time for page loading & JS hydration
 
+    # Ensure we are on the 'Sent' tab by finding and clicking it explicitly
+    try:
+        # Look for the 'Sent' navigation item/button/tab and click it
+        sent_tab = page.locator("a:has-text('Sent'), button:has-text('Sent'), [role='tab']:has-text('Sent')").first
+        if sent_tab.count() > 0:
+            logger.info("Found 'Sent' tab element. Clicking it to ensure active state.")
+            sent_tab.click()
+            session.wait()
+    except Exception as e:
+        logger.warning("Failed to locate or click 'Sent' tab link, continuing anyway: %s", e)
+
     # Wait for the main list or a reasonable period
     try:
         page.wait_for_selector(SELECTORS["withdraw_button"], timeout=10000)
-    except Exception:
-        logger.info("No 'Withdraw' buttons found on the page. Assuming no pending sent invitations.")
+    except Exception as e:
+        logger.warning("Error waiting for withdraw button selector. Current URL: %s. Error: %s", page.url, e, exc_info=True)
         return 0
 
     # 2. Locate and process invitation cards

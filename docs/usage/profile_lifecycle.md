@@ -6,8 +6,9 @@ Every LinkedIn profile flows through a fixed sequence of stages, from first
 discovery on a page to agentic follow-up conversations.
 
 ```
-Discovery → Enrichment + Embedding → Qualification (LLM) → QUALIFIED → READY_TO_CONNECT (GP gate) → PENDING → CONNECTED → COMPLETED
-  (url)       (voyager + fastembed)     (always LLM)         (Deal)     (GP prob > threshold)         (sent)    (accepted)   (agent follow-up)
+Discovery → Enrichment + Embedding → Qualification (LLM) → QUALIFIED → READY_TO_CONNECT (GP gate) → PENDING → CONNECTED ─┬→ WAITING_APPROVAL ─┬→ CONNECTED → COMPLETED
+  (url)       (voyager + fastembed)     (always LLM)         (Deal)     (GP prob > threshold)         (sent)    (accepted)  │    (requires ok)   │    (approved message)
+                                                                                                                          └────────────────────┴→ ESCALATED (high intent)
 ```
 
 ---
@@ -131,14 +132,29 @@ summaries plus a verbatim message window, and asks the LLM for a structured
 | `wait` | Re-enqueue without sending (check back in `follow_up_hours`) |
 | `mark_completed` | Close the Deal (booked, declined, or gone cold) |
 
-The loop continues until the agent returns `mark_completed`. Default re-check
+If the campaign's `approval_mode` requires it, the message is not sent directly. Instead, the Deal moves to `WAITING_APPROVAL`, storing the text in `PendingMessage` until reviewed by an admin.
+
+The loop continues until the agent returns `mark_completed` or the deal is closed. Default re-check
 interval is 72 hours if the agent doesn't specify one. Rate-limited to
 `follow_up_daily_limit` (default 30) per LinkedIn account.
 
-## 8. Terminal States
+## 8. Approval & Escalation (WAITING_APPROVAL / ESCALATED)
+
+When a follow-up message is generated, if the campaign requires manual approval (via `Campaign.approval_mode` set to `all`, `first_touch`, or `high_intent`), the Deal state moves to `WAITING_APPROVAL`.
+- **Pending Message**: A `PendingMessage` is created. Interactive alerts are sent to Telegram with inline action buttons (`Approve`, `Skip`, `Edit`).
+- **Feedback Loop**: When corrected by the admin, the edits are saved in `AgentFeedback` and are loaded as style corrections for future message generations.
+- **Escalation**: If the conversation's intent is classified as `high` or the situation is `needs_human`, the Deal state transitions to `ESCALATED`, and automation is paused until manual resolution.
+
+## 9. Terminal States
 
 - **COMPLETED** — conversation completed by the agent (booked, declined, or went cold)
 - **FAILED** — unrecoverable error at any state, or LLM rejection (campaign-scoped "Disqualified" closing reason)
+
+## 10. Account Safety & Protection
+
+To protect the LinkedIn profile from bans, the daemon schedules safety actions:
+- **Auto-throttle Connect Limits**: Halves `connect_daily_limit` (floor 5) if the 7-day connection acceptance rate falls below 15%; recovers (+2 per check, up to the original limit) if it exceeds 30%. Checked daily.
+- **Auto-withdraw Old Invitations**: Weekly task (`withdraw_old_invites`) navigates to sent invitations on LinkedIn and withdraws pending invitations older than 3 weeks (up to 10 per batch, staggered).
 
 ---
 
@@ -169,17 +185,26 @@ interval is 72 hours if the agent doesn't specify one. Rate-limited to
                           │   PENDING   │  Waiting for acceptance
                           └──────┬──────┘
                                  │ connection accepted
-                          ┌──────▼──────┐
-                          │  CONNECTED  │  Ready for follow-up
-                          └──────┬──────┘
-                                 │ run_follow_up_agent()
-                          ┌──────▼──────┐
-                          │  COMPLETED  │  Done
-                          └─────────────┘
+                           ┌──────▼──────┐
+                           │  CONNECTED  │◄─────────────────────────────┐
+                           └──────┬──────┘                              │
+                                  │ run_follow_up_agent()               │
+                                  ├───────────────────────────────┐     │
+                                  │ (if approval required)        │     │ skip /
+                                  ▼                               ▼     │ approve
+                           ┌──────────────┐              ┌────────┴─────┴┐
+                           │  COMPLETED   │              │WAITING_APPROV.│
+                           └──────────────┘              └────────┬──────┘
+                                                                  │ intent=high /
+                                                                  │ needs_human
+                                                                  ▼
+                                                         ┌──────────────┐
+                                                         │  ESCALATED   │
+                                                         └──────────────┘
 
-                          ┌─────────────┐
-                          │   FAILED    │  Error at any state
-                          └─────────────┘
+                           ┌─────────────┐
+                           │   FAILED    │  Error at any state
+                           └─────────────┘
 ```
 
 ## Freemium Campaigns
