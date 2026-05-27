@@ -100,6 +100,10 @@ def notify(event_type: str, **kwargs) -> None:
         return
 
     campaign = kwargs.get("campaign")
+    if not campaign and "profile" in kwargs:
+        profile = kwargs["profile"]
+        if hasattr(profile, "user") and profile.user:
+            campaign = profile.user.campaigns.first()
     campaign_name = campaign.name if campaign else "General"
 
     if event_type == "lead_reply":
@@ -218,6 +222,35 @@ def notify(event_type: str, **kwargs) -> None:
             if message_id:
                 pending_message.telegram_message_id = message_id
                 pending_message.save(update_fields=["telegram_message_id"])
+
+    elif event_type == "auto_throttle":
+        rate = kwargs.get("rate", 0.0)
+        new_limit = kwargs.get("new_limit", 0)
+        severity = kwargs.get("severity", "info")
+        profile = kwargs.get("profile")
+
+        profile_label = "General"
+        if profile:
+            if hasattr(profile, "user") and profile.user:
+                profile_label = profile.user.username
+            else:
+                profile_label = profile.linkedin_username
+
+        rate_percentage = int(rate * 100)
+
+        if severity == "warning":
+            msg = (
+                f"🔴 <b>[{profile_label}] Auto-throttle activated!</b>\n"
+                f"• <b>Acceptance rate 7d:</b> <code>{rate_percentage}%</code> (low)\n"
+                f"• <b>Connect limit:</b> reduced to <code>{new_limit}</code>"
+            )
+        else:
+            msg = (
+                f"🟢 <b>[{profile_label}] Connect limit restored</b>\n"
+                f"• <b>Acceptance rate 7d:</b> <code>{rate_percentage}%</code>\n"
+                f"• <b>Connect limit:</b> restored to <code>{new_limit}</code>"
+            )
+        send_text(msg)
 
 
 def safe_notify(event_type: str, **kwargs) -> None:

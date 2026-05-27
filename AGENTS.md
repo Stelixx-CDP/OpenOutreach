@@ -1,12 +1,12 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Rules
 
 - **Python env**: Always use `.venv/bin/python` (not system `python3`).
 - **Commits**: No `Co-Authored-By` lines. Single-line messages (no body).
 - **Dependencies**: Managed in `requirements/*.txt` (used by local dev and Docker).
-- **Docs sync**: When modifying code, update CLAUDE.md and ARCHITECTURE.md to reflect changes.
-- **No memory**: Never use the auto-memory system (no MEMORY.md, no memory files). All persistent context belongs in CLAUDE.md or ARCHITECTURE.md.
+- **Docs sync**: When modifying code, update AGENTS.md and ARCHITECTURE.md to reflect changes.
+- **No memory**: Never use the auto-memory system (no MEMORY.md, no memory files). All persistent context belongs in AGENTS.md or ARCHITECTURE.md.
 - **Error handling**: App should crash on unexpected errors. `try/except` only for expected, recoverable errors. Custom exceptions in `exceptions.py`.
 - **No API backward compat**: Project has no external users yet — don't preserve old Python APIs, function signatures, or import paths. Rename, delete, and rewrite freely; no shims or re-export modules. DB schema changes still go through Django migrations as normal — existing installs must upgrade cleanly.
 

@@ -200,6 +200,50 @@ def _seed_deal_tasks(session) -> None:
             on_deal_state_entered(deal)
 
 
+def _seed_withdraw_tasks(session) -> None:
+    """Ensure one withdraw_old_invites task per profile (not per campaign)."""
+    profile_id = session.linkedin_profile.pk
+
+    # Check if there is an active (PENDING or RUNNING) withdraw task for this profile
+    active_task_exists = Task.objects.filter(
+        task_type=Task.TaskType.WITHDRAW_OLD_INVITES,
+        status__in=[Task.Status.PENDING, Task.Status.RUNNING],
+        payload__profile_id=profile_id,
+    ).exists()
+
+    if active_task_exists:
+        return
+
+    # Check last completed withdraw task for this profile
+    last_completed = Task.objects.filter(
+        task_type=Task.TaskType.WITHDRAW_OLD_INVITES,
+        status=Task.Status.COMPLETED,
+        payload__profile_id=profile_id,
+    ).order_by("-completed_at").first()
+
+    if last_completed and last_completed.completed_at:
+        next_run = last_completed.completed_at + datetime.timedelta(days=7)
+        if next_run > timezone.now():
+            # Schedule for the future
+            Task.objects.create(
+                task_type=Task.TaskType.WITHDRAW_OLD_INVITES,
+                status=Task.Status.PENDING,
+                scheduled_at=next_run,
+                payload={"profile_id": profile_id},
+            )
+            logger.info("Scheduled next withdraw task for profile %d at %s", profile_id, next_run)
+            return
+
+    # No active task and no recent completed task -> run now (with a tiny delay)
+    Task.objects.create(
+        task_type=Task.TaskType.WITHDRAW_OLD_INVITES,
+        status=Task.Status.PENDING,
+        scheduled_at=timezone.now() + datetime.timedelta(seconds=10),
+        payload={"profile_id": profile_id},
+    )
+    logger.info("Enqueued immediate withdraw task for profile %d", profile_id)
+
+
 def reconcile(session) -> None:
     """Reconcile the Task queue with CRM state.
 
@@ -210,6 +254,7 @@ def reconcile(session) -> None:
     _recover_stale_running_tasks()
     _seed_connect_tasks(session)
     _seed_deal_tasks(session)
+    _seed_withdraw_tasks(session)
 
     pending_count = Task.objects.pending().count()
     logger.info("Task queue reconciled: %d pending tasks", pending_count)

@@ -28,6 +28,7 @@ from linkedin.tasks.check_pending import handle_check_pending
 from linkedin.tasks.connect import handle_connect
 from linkedin.tasks.follow_up import handle_follow_up
 from linkedin.tasks.send_approved_message import handle_send_approved_message
+from linkedin.tasks.withdraw_old_invites import handle_withdraw_old_invites
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ _HANDLERS = {
     Task.TaskType.CHECK_PENDING: handle_check_pending,
     Task.TaskType.FOLLOW_UP: handle_follow_up,
     Task.TaskType.SEND_APPROVED_MESSAGE: handle_send_approved_message,
+    Task.TaskType.WITHDRAW_OLD_INVITES: handle_withdraw_old_invites,
 }
 
 HEARTBEAT_INTERVAL = 300  # 5 minutes
@@ -281,6 +283,7 @@ def run_daemon(session):
     # Single-threaded: one task at a time, no concurrent enqueuing,
     # so sleeping until the next scheduled_at is safe.
     _reauth_failures = 0
+    _last_throttle_check = None
     while True:
         pause = seconds_until_active()
         if pause > 0:
@@ -301,6 +304,16 @@ def run_daemon(session):
 
         task = Task.objects.claim_next()
         if task is None:
+            # Run safety checks (at most once every 24 hours)
+            now = timezone.now()
+            if _last_throttle_check is None or (now - _last_throttle_check).total_seconds() > 86400:
+                try:
+                    from linkedin.safety import auto_throttle_check
+                    auto_throttle_check(session.linkedin_profile)
+                    _last_throttle_check = now
+                except Exception as safety_exc:
+                    logger.error("Failed to run safety auto-throttle check: %s", safety_exc)
+
             # Nothing ready — reconcile the queue from CRM state. Any deal
             # stuck without a pending task (e.g. because a prior handler
             # crashed) gets a fresh task here; this is the retry mechanism.
@@ -311,20 +324,22 @@ def run_daemon(session):
             if wait is None:
                 logger.info("Queue empty after reconcile — sleeping 1h")
                 sleep_with_heartbeat(3600, heartbeat, "queue empty")
-                rhythm.reset()
-                continue
-            if wait > 0:
-                h, m = int(wait // 3600), int(wait % 3600 // 60)
-                logger.info("Next task in %dh%02dm — sleeping", h, m)
-                sleep_with_heartbeat(
-                    wait, heartbeat, f"next task in {h}h{m:02d}m",
-                )
-                rhythm.reset()
+            elif wait > 0:
+                logger.info("Next task in %.1fs — sleeping", wait)
+                sleep_with_heartbeat(wait, heartbeat, "waiting for task")
+            rhythm.reset()
             continue
 
-        campaign = Campaign.objects.filter(pk=task.payload.get("campaign_id")).first()
+        campaign_id = task.payload.get("campaign_id")
+        campaign = None
+        if campaign_id:
+            campaign = Campaign.objects.filter(pk=campaign_id).first()
+        elif task.task_type == Task.TaskType.WITHDRAW_OLD_INVITES:
+            # Fallback to the first campaign associated with the user of this session
+            campaign = Campaign.objects.filter(users=session.linkedin_profile.user).first()
+
         if not campaign:
-            logger.error("Campaign %s not found", task.payload.get("campaign_id"))
+            logger.error("Campaign %s not found for task %s", campaign_id, task.task_type)
             task.mark_failed()
             continue
 

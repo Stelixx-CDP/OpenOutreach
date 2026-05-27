@@ -193,6 +193,21 @@ To maintain message quality and align the AI with the user's preferred messaging
 5. **Asynchronous Playwright Sending**: The `SEND_APPROVED_MESSAGE` task is processed asynchronously by the main single-threaded daemon using Playwright. This decouples slow browser interactions from the instant-response Telegram Listener thread.
 6. **In-Context Learning (Feedback Loop)**: When composing a new message, the follow-up agent queries the 5 most recent `edited` feedbacks for the campaign and feeds them into the system prompt (`follow_up_agent.j2`) as style correction examples.
 
+### 5.7. Account Safety & Protection
+
+To protect LinkedIn profiles from being flagged, the system implements three proactive protection features:
+
+1. **Auto-throttle Connect Limits**:
+   - Dynamically calculated via `compute_acceptance_rate_7d(profile) -> float` at most once every 24 hours during idle daemon cycles, based on sent `ActionLog` CONNECT entries and accepted `Deal` counts over the last 7 days.
+   - Throttling activates if the 7-day acceptance rate falls below 15%: the profile's `connect_daily_limit` is halved (with a floor of 5) and a warning Telegram notification is sent.
+   - Recovery triggers if the 7-day rate exceeds 30% and the current limit is lower than `original_connect_daily_limit`: the daily limit is gradually restored (+2 per check, up to the original value) and an informational notification is sent.
+2. **Auto-withdraw Old Invitations**:
+   - Playwright-driven UI action `withdraw_old_invitations(session) -> int` navigates to `https://www.linkedin.com/mynetwork/invitation-manager/sent/`.
+   - It identifies pending sent invitations older than 3 weeks (e.g. matching "3 weeks ago", "4 weeks ago", "month", "year") and withdraws them (up to 10 per run, with random 3-5s delays).
+   - Tracks element removal reliably using a temporary `withdrawing-temp` class to ensure Playwright's lazy locators do not encounter index-shifting errors.
+3. **Weekly Task Scheduling**:
+   - Centralized scheduler `reconcile` seeds one `withdraw_old_invites` task per profile. It runs immediately if no previous task was run for the profile, or schedules the next run precisely 7 days after the last completed withdraw task.
+
 ---
 
 ## 8. Error Handling & Diagnostics

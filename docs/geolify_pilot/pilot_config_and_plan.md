@@ -710,33 +710,33 @@ Good news, we got it fixed
 
 ## 10. How to check pending invitations + acceptance rate
 
-### 10.1 Pending invitations sent
+> [!NOTE]
+> **ĐÃ TỰ ĐỘNG HOÁ (Phase 7):** Các cơ chế kiểm tra pending invitations, tính toán acceptance rate và rút lời mời kết bạn cũ (> 21 ngày) hiện đã được hệ thống tự động hoá hoàn toàn qua daemon. Xem chi tiết tại [docs/developer/architecture.md](file:///Users/gn/Documents/Gnoc/Github/Stelixx%20CDP/OpenOutreach/docs/developer/architecture.md) (mục 5.7). Các hướng dẫn thủ công dưới đây chỉ dùng để đối chiếu khi cần thiết.
+
+### 10.1 Pending invitations sent (Manual Check)
 
 1. Truy cập: `https://www.linkedin.com/mynetwork/invitation-manager/sent/`
-2. UI sẽ list tất cả pending invites bạn đã gửi
-3. Count total — **nếu > 500-700, cần withdraw bớt** (acceptance rate thấp = LinkedIn flag account)
-4. Cách withdraw bulk: scroll xuống → click "Withdraw" trên invites cũ nhất (> 30 days = ít khả năng accept)
+2. UI sẽ list tất cả pending invites bạn đã gửi.
+3. Hệ thống sẽ **tự động rút (auto-withdraw)** các lời mời cũ hơn 21 ngày (chạy định kỳ hàng tuần thông qua tác vụ `withdraw_old_invites`, giới hạn tối đa 10 lượt rút/batch để tránh bị LinkedIn phạt).
+4. Nếu thực hiện thủ công: scroll xuống → click "Withdraw" trên invites cũ nhất (> 30 days = ít khả năng accept).
 
-### 10.2 Acceptance rate (manual calculation)
+### 10.2 Acceptance rate (Automated Controls)
 
-LinkedIn không hiển thị acceptance rate trực tiếp. Compute:
+Hệ thống tính toán chỉ số này tự động trên daemon qua `compute_acceptance_rate_7d`:
 
-- **Numerator** = số connections mới trong N ngày qua
-    - `linkedin.com/mynetwork/invite-connect/connections/` → sort by "Recently added"
-    - Count those added trong window
-- **Denominator** = số invites đã gửi trong N ngày qua
-    - `linkedin.com/mynetwork/invitation-manager/sent/` → filter date
-- **Rate** = numerator / denominator × 100%
+- **Numerator** = số connections mới được chấp nhận trong 7 ngày qua.
+- **Denominator** = số kết bạn gửi đi (ActionLog CONNECT) trong 7 ngày qua.
+- **Rate** = numerator / denominator × 100%.
 
-**Benchmark:**
+**Cơ chế bảo vệ (Auto-throttle):**
+- **Dưới 15%** (Nguy cơ flag tài khoản): Giới hạn kết bạn ngày `connect_daily_limit` tự động bị chia đôi (tối thiểu là 5) và cảnh báo gửi về Telegram.
+- **Trên 30%** (An toàn): Giới hạn được nâng dần trở lại (+2 mỗi ngày) cho đến khi đạt giới hạn gốc ban đầu.
 
-- < 15% → account health concern, slow down
+**Các mốc benchmark để theo dõi:**
+- < 15% → account health concern, slow down (Hệ thống tự động throttle)
 - 15-25% → average
 - 25-40% → good
-- 
-    
-    > 40% → excellent (rare for cold outreach)
-    > 
+- > 40% → excellent (rare for cold outreach)
 
 ### 10.3 Once OpenOutreach is running
 

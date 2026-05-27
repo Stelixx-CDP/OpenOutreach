@@ -119,6 +119,7 @@ class LinkedInProfile(models.Model):
     subscribe_newsletter = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
     connect_daily_limit = models.PositiveIntegerField(default=20)
+    original_connect_daily_limit = models.PositiveIntegerField(default=20)
     connect_weekly_limit = models.PositiveIntegerField(default=100)
     follow_up_daily_limit = models.PositiveIntegerField(default=25)
     legal_accepted = models.BooleanField(default=False)
@@ -255,6 +256,7 @@ class Task(models.Model):
         CHECK_PENDING = "check_pending"
         FOLLOW_UP = "follow_up"
         SEND_APPROVED_MESSAGE = "send_approved_message"
+        WITHDRAW_OLD_INVITES = "withdraw_old_invites"
 
 
     class Status(models.TextChoices):

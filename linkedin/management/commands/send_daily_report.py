@@ -184,11 +184,27 @@ class Command(BaseCommand):
         # Count deals whose connect was sent in the 7d window AND are now accepted.
         # Use creation_date (= when the Deal/connect was created), not update_date
         # which can be bumped by follow-ups or other state changes.
-        accepted_7d = Deal.objects.filter(
+        accepted_deals_7d = Deal.objects.filter(
             state__in=[ProfileState.CONNECTED, ProfileState.COMPLETED, ProfileState.ESCALATED, ProfileState.WAITING_APPROVAL],
             creation_date__range=(seven_days_ago, today_end)
-        ).count()
+        )
+        accepted_7d = accepted_deals_7d.count()
         acceptance_rate_7d = (accepted_7d / sent_7d * 100) if sent_7d > 0 else 0.0
+
+        # Calculate 7-day reply rate (out of the accepted connections, how many replied)
+        replied_7d = 0
+        if accepted_7d > 0:
+            lead_ct = ContentType.objects.get_for_model(Lead)
+            lead_ids_7d = accepted_deals_7d.values_list("lead_id", flat=True)
+            replied_7d = ChatMessage.objects.filter(
+                content_type=lead_ct,
+                object_id__in=lead_ids_7d,
+                is_outgoing=False
+            ).values("object_id").distinct().count()
+        reply_rate_7d = (replied_7d / accepted_7d * 100) if accepted_7d > 0 else 0.0
+
+        # Total pending invitations currently
+        total_pending = Deal.objects.filter(state=ProfileState.PENDING).count()
 
         llm_tasks_count = Task.objects.filter(
             status=Task.Status.COMPLETED,
@@ -202,6 +218,8 @@ class Command(BaseCommand):
         report_lines.append("📊 <b>TỔNG HỢP TOÀN CỤC (GLOBAL HEALTH)</b>")
         report_lines.append(f"• Tổng connects gửi/nhận hôm nay: {total_connects_sent} / {total_connects_accepted}")
         report_lines.append(f"• Tỷ lệ chấp nhận kết bạn 7d: <b>{acceptance_rate_7d:.1f}%</b> (Gửi {sent_7d} | Đồng ý {accepted_7d})")
+        report_lines.append(f"• Tỷ lệ phản hồi kết bạn 7d: <b>{reply_rate_7d:.1f}%</b> (Đồng ý {accepted_7d} | Phản hồi {replied_7d})")
+        report_lines.append(f"• Tổng pending invites hiện tại: <b>{total_pending}</b>")
         report_lines.append(f"• LLM Tasks completed: {llm_tasks_count} (~${est_cost:.3f})")
 
         # Send to Telegram

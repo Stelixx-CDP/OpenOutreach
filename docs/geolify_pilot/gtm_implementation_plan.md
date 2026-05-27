@@ -588,7 +588,7 @@ def trackify_message(message: str, deal: Deal) -> str:
 
 ---
 
-### Phase 7: Account Safety — "Tự bảo vệ"
+### Phase 7: Account Safety — "Tự bảo vệ" (Completed ✅)
 
 **Mục tiêu:** Bảo vệ account proactively.
 
