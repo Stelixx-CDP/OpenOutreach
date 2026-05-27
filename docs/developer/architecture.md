@@ -81,11 +81,11 @@ The system uses Django with SQLite (by default at `data/db.sqlite3`).
 ```
 (url_only) → (enriched) → QUALIFIED → READY_TO_CONNECT → PENDING → CONNECTED → COMPLETED
   (implicit)   (implicit)   (Deal)     (GP confidence gate)  (sent)   (accepted)   (followed up)
-                                 ↓
-                           FAILED (LLM rejection creates campaign-scoped FAILED Deal)
+                                 ↓                                       ↓
+                           FAILED (LLM rejection)                   ESCALATED (Intent=high / needs_human)
 ```
 
-Pre-Deal states are implicit: a Lead with no description is `url_only`, a Lead with description is `enriched`. `ProfileState` contains: `QUALIFIED`, `READY_TO_CONNECT`, `PENDING`, `CONNECTED`, `COMPLETED`, `FAILED`.
+Pre-Deal states are implicit: a Lead with no description is `url_only`, a Lead with description is `enriched`. `ProfileState` contains: `QUALIFIED`, `READY_TO_CONNECT`, `PENDING`, `CONNECTED`, `COMPLETED`, `FAILED`, `ESCALATED`.
 
 ---
 

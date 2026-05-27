@@ -35,7 +35,7 @@ def _truncate(text: str, limit: int) -> str:
     return text[: limit - 30] + "\n\n<i>…(truncated)</i>"
 
 
-def send_text(html_content: str) -> bool:
+def send_text(html_content: str, reply_markup: dict | None = None) -> bool:
     """Send HTML-formatted text message to Telegram."""
     token, chat_id = _get_token(), _get_chat_id()
     if not token or not chat_id:
@@ -49,6 +49,8 @@ def send_text(html_content: str) -> bool:
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     try:
         response = requests.post(url, json=payload, timeout=10)
         response.raise_for_status()
@@ -159,6 +161,28 @@ def notify(event_type: str, **kwargs) -> None:
             f"• <b>Hành động:</b> Cần manual đăng nhập và xác thực 2FA qua VNC."
         )
         send_text(msg)
+
+    elif event_type == "escalation":
+        public_id = kwargs.get("public_id", "unknown")
+        intent = kwargs.get("intent", "unknown")
+        situation = kwargs.get("situation", "unknown")
+        last_message = kwargs.get("last_message", "")
+        linkedin_url = kwargs.get("linkedin_url", f"https://www.linkedin.com/in/{public_id}/")
+
+        msg = (
+            f"🔥 <b>[{campaign_name}] YÊU CẦU XỬ LÝ THỦ CÔNG (ESCALATION)</b>\n"
+            f"• <b>Lead:</b> <code>{public_id}</code>\n"
+            f"• <b>Intent:</b> <code>{intent}</code> | <b>Situation:</b> <code>{situation}</code>\n"
+            f"• <b>Tin nhắn cuối từ lead:</b> <i>\"{html.escape(last_message)}\"</i>"
+        )
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "📱 Open Chat", "url": linkedin_url}
+                ]
+            ]
+        }
+        send_text(msg, reply_markup=reply_markup)
 
 
 def safe_notify(event_type: str, **kwargs) -> None:

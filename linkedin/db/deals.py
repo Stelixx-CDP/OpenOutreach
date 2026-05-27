@@ -14,6 +14,7 @@ _STATE_LOG_STYLE = {
     ProfileState.CONNECTED: ("CONNECTED", "green", ["bold"]),
     ProfileState.COMPLETED: ("COMPLETED", "green", ["bold"]),
     ProfileState.FAILED: ("FAILED", "red", ["bold"]),
+    ProfileState.ESCALATED: ("ESCALATED", "red", ["bold"]),
 }
 
 

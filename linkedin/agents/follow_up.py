@@ -40,6 +40,16 @@ class FollowUpDecision(BaseModel):
     follow_up_hours: float = Field(
         description="Hours until next follow-up. Always required — you decide the pace.",
     )
+    intent: Literal["high", "medium", "low"] = Field(
+        default="low",
+        description="high=wants demo/call/trial/pricing, medium=interested, low=no signal",
+    )
+    situation: Literal[
+        "engaging", "curious", "needs_human", "objecting", "cold"
+    ] = Field(
+        default="cold",
+        description="Current conversation dynamic — determines who handles next",
+    )
 
     @model_validator(mode="after")
     def _check_required_fields(self):

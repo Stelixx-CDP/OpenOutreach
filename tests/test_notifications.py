@@ -138,7 +138,7 @@ def test_notify_browser_crash_with_screenshot(mock_send_photo, fake_session):
     assert "TargetClosedError" in args[1]
 
 
-@patch("linkedin.notifications.send_text")
+@patch("linkedin.management.commands.send_daily_report.send_text")
 def test_send_daily_report_command(mock_send_text, fake_session, db):
     """Test send_daily_report command successfully generates and sends stats."""
     campaign = fake_session.campaign

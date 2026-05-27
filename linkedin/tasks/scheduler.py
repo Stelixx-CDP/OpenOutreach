@@ -156,8 +156,9 @@ def on_deal_state_entered(deal) -> None:
         enqueue_check_pending(campaign_id, public_id, backoff_hours=backoff)
     elif state == ProfileState.CONNECTED:
         enqueue_follow_up(campaign_id, public_id)
-    # Other states (QUALIFIED, READY_TO_CONNECT, COMPLETED, FAILED) have
-    # no implied deal-level task — handled by the connect loop or terminal.
+    # Other states (QUALIFIED, READY_TO_CONNECT, COMPLETED, FAILED, ESCALATED)
+    # have no implied deal-level task — handled by the connect loop, terminal,
+    # or manual admin resume.
 
 
 # ── Reconciliation ────────────────────────────────────────────────────

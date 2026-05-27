@@ -8,4 +8,5 @@ class ProfileState(StrEnum):
     CONNECTED = "Connected"
     COMPLETED = "Completed"
     FAILED = "Failed"
+    ESCALATED = "Escalated"
 

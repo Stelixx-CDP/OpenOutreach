@@ -84,6 +84,11 @@ def handle_follow_up(task, session, qualifiers):
         logger.warning("follow_up: no Deal for %s — skipping", public_id)
         return
 
+    # CRIT-1: Guard against running follow_up on non-CONNECTED deals
+    if deal.state != ProfileState.CONNECTED.value:
+        logger.info("follow_up: deal %s in state %s, not CONNECTED — skipping", public_id, deal.state)
+        return
+
     if _too_soon_to_nudge(deal):
         logger.info("[%s] follow_up %s: too soon to nudge — re-enqueuing", session.campaign, public_id)
         enqueue_follow_up(campaign_id, public_id, delay_seconds=24 * 3600)
@@ -93,6 +98,44 @@ def handle_follow_up(task, session, qualifiers):
     decision = run_follow_up_agent(session, deal)
 
     profile = _build_send_profile(deal)
+
+    # HIGH-3: Only escalate if action is NOT mark_completed
+    should_escalate = (
+        decision.intent == "high" or decision.situation == "needs_human"
+    ) and decision.action != "mark_completed"
+
+    if should_escalate:
+        reason = f"intent={decision.intent}, situation={decision.situation}"
+        set_profile_state(session, public_id, ProfileState.ESCALATED.value, reason=reason)
+
+        # MED-3: Fetch last incoming message text for Telegram notification
+        from chat.models import ChatMessage
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(type(deal.lead))
+        last_msg = ChatMessage.objects.filter(
+            content_type=ct, object_id=deal.lead_id, is_outgoing=False
+        ).order_by("-creation_date").first()
+        last_message_text = last_msg.content if last_msg else "(no reply yet)"
+
+        from linkedin.notifications import safe_notify
+        safe_notify(
+            "escalation",
+            public_id=public_id,
+            intent=decision.intent,
+            situation=decision.situation,
+            last_message=last_message_text,
+            linkedin_url=deal.lead.linkedin_url,
+            campaign=deal.campaign,
+        )
+
+        if decision.action == "send_message":
+            logger.info("[%s] follow_up bridge message for escalated %s: %s", session.campaign, public_id, decision.message)
+            sent = send_raw_message(session, profile, decision.message)
+            if sent:
+                session.linkedin_profile.record_action(
+                    ActionLog.ActionType.FOLLOW_UP, session.campaign,
+                )
+        return
 
     if decision.action == "send_message":
         logger.info("[%s] follow_up message for %s: %s", session.campaign, public_id, decision.message)
@@ -112,3 +155,4 @@ def handle_follow_up(task, session, qualifiers):
 
     elif decision.action == "wait":
         enqueue_follow_up(campaign_id, public_id, delay_seconds=decision.follow_up_hours * 3600)
+
