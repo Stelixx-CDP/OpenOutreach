@@ -252,6 +252,21 @@ def notify(event_type: str, **kwargs) -> None:
             )
         send_text(msg)
 
+    elif event_type == "validation_failed":
+        lead = kwargs.get("lead", "unknown")
+        rejected_message = kwargs.get("rejected_message", "")
+        reason = kwargs.get("reason", "")
+
+        msg = (
+            f"⚠️ <b>[{campaign_name}] Tin nhắn không qua kiểm duyệt AI!</b>\n"
+            f"• <b>Lead:</b> <code>{lead}</code>\n"
+            f"• <b>Lý do lỗi:</b> <i>{html.escape(reason)}</i>\n"
+            f"• <b>Tin nhắn bị từ chối:</b>\n"
+            f"<i>\"{html.escape(rejected_message)}\"</i>\n"
+            f"• <b>Hành động:</b> Chuyển sang chế độ Chờ (24h)."
+        )
+        send_text(msg)
+
 
 def safe_notify(event_type: str, **kwargs) -> None:
     """Wrapper that swallows exceptions — safe for use in daemon hot paths."""

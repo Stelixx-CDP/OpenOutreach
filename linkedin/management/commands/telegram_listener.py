@@ -153,7 +153,9 @@ def listen_to_telegram(*, max_iterations: int | None = None) -> None:
                                         self.campaign = campaign
 
                                 mock_session = SimpleSession(deal.campaign)
-                                set_profile_state(mock_session, lead_id, ProfileState.CONNECTED.value, reason="skipped_by_user")
+                                set_profile_state(mock_session, lead_id, ProfileState.CONNECTED.value, reason="skipped_by_user", enqueue_task=False)
+                                from linkedin.tasks.scheduler import enqueue_follow_up
+                                enqueue_follow_up(deal.campaign.id, lead_id, delay_seconds=24 * 3600)
 
                                 # Delete pending
                                 pending.delete()

@@ -87,7 +87,7 @@ def handle_send_approved_message(task, session, qualifiers):
         )
     else:
         # Move back to CONNECTED and schedule next follow-up
-        set_profile_state(session, public_id, ProfileState.CONNECTED.value, reason="approved_message_sent")
+        set_profile_state(session, public_id, ProfileState.CONNECTED.value, reason="approved_message_sent", enqueue_task=False)
         follow_up_hours = decision_json.get("follow_up_hours", 24.0)
         enqueue_follow_up(campaign.id, public_id, delay_seconds=follow_up_hours * 3600)
 

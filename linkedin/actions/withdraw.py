@@ -43,6 +43,7 @@ def withdraw_old_invitations(session: "AccountSession") -> int:
     Up to 10 invitations are withdrawn per run.
     """
     logger.info("Starting auto-withdraw of old invitations")
+    session.ensure_browser()
     page = session.page
     
     # 1. Navigate to sent invitation manager

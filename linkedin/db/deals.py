@@ -74,7 +74,7 @@ def _existing_deal_or_lead(public_id: str, campaign):
 # ── State transitions ──
 
 
-def set_profile_state(session, public_identifier: str, new_state: str, reason: str = "", outcome: str = ""):
+def set_profile_state(session, public_identifier: str, new_state: str, reason: str = "", outcome: str = "", enqueue_task: bool = True):
     """Move the Deal to the corresponding state and enqueue the implied next task.
 
     Campaign-scoped: only finds Deals in the current campaign.
@@ -82,7 +82,7 @@ def set_profile_state(session, public_identifier: str, new_state: str, reason: s
 
     Task creation for state-driven transitions (CONNECTED → follow_up,
     PENDING → check_pending) happens here via the scheduler hook — callers
-    do not enqueue directly.
+    do not enqueue directly unless enqueue_task=False.
     """
     from crm.models import Deal
     from linkedin.tasks.scheduler import on_deal_state_entered
@@ -127,7 +127,8 @@ def set_profile_state(session, public_identifier: str, new_state: str, reason: s
     else:
         logger.debug("%s %s (unchanged)%s", public_identifier, label, suffix)
 
-    on_deal_state_entered(deal)
+    if enqueue_task:
+        on_deal_state_entered(deal)
 
 
 # ── State queries ──

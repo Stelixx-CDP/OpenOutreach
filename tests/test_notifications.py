@@ -197,3 +197,23 @@ def test_send_daily_report_command(mock_send_text, fake_session, db):
     assert "Tin nhắn Agent đã gửi hôm nay" in report_msg
     assert "john-doe" in report_msg
     assert "Hello, John! How are you?" in report_msg
+
+
+@patch("linkedin.notifications.send_text")
+def test_notify_validation_failed(mock_send_text, fake_session):
+    """Test notify formats validation_failed correctly."""
+    notify(
+        "validation_failed",
+        lead="john-doe",
+        rejected_message="Hi John, nice to meet you!",
+        reason="Repeated greeting word",
+        campaign=fake_session.campaign
+    )
+
+    mock_send_text.assert_called_once()
+    message = mock_send_text.call_args[0][0]
+    assert f"[{fake_session.campaign.name}] Tin nhắn không qua kiểm duyệt AI!" in message
+    assert "john-doe" in message
+    assert "Repeated greeting word" in message
+    assert "Hi John, nice to meet you!" in message
+

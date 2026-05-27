@@ -176,6 +176,7 @@ def _create_account(
         linkedin_password=password,
         subscribe_newsletter=subscribe,
         connect_daily_limit=connect_daily,
+        original_connect_daily_limit=connect_daily,
         connect_weekly_limit=connect_weekly,
         follow_up_daily_limit=follow_up_daily,
     )

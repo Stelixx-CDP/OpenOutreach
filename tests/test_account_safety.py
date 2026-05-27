@@ -17,7 +17,20 @@ class TestAutoThrottle:
     def test_compute_acceptance_rate_7d_zero_sent(self, fake_session):
         lp = fake_session.linkedin_profile
         rate = compute_acceptance_rate_7d(lp)
-        assert rate == 0.0
+        assert rate is None
+
+    @patch("linkedin.notifications.safe_notify")
+    def test_auto_throttle_skip_when_zero_sent(self, mock_notify, fake_session):
+        lp = fake_session.linkedin_profile
+        lp.original_connect_daily_limit = 20
+        lp.connect_daily_limit = 20
+        lp.save()
+        
+        auto_throttle_check(lp)
+        
+        lp.refresh_from_db()
+        assert lp.connect_daily_limit == 20
+        mock_notify.assert_not_called()
 
     def test_compute_acceptance_rate_7d_success(self, fake_session):
         lp = fake_session.linkedin_profile

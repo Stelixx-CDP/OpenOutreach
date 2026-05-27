@@ -26,7 +26,7 @@ def compute_acceptance_rate_7d(profile) -> float:
     ).count()
 
     if sent_7d == 0:
-        return 0.0
+        return None
 
     # 2. Deals in campaign associated with this profile's user that were accepted
     accepted_7d = Deal.objects.filter(
@@ -46,9 +46,11 @@ def compute_acceptance_rate_7d(profile) -> float:
 def auto_throttle_check(profile) -> None:
     """Check the 7-day acceptance rate and throttle or restore connect limits accordingly."""
     rate_7d = compute_acceptance_rate_7d(profile)
+    if rate_7d is None:
+        return
 
-    # Ensure original limit is initialized
-    if not profile.original_connect_daily_limit:
+    # Ensure original limit is initialized and synchronized with manual updates
+    if not profile.original_connect_daily_limit or profile.connect_daily_limit > profile.original_connect_daily_limit:
         profile.original_connect_daily_limit = profile.connect_daily_limit
         profile.save(update_fields=["original_connect_daily_limit"])
 

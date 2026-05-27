@@ -150,7 +150,9 @@ class PendingMessageAdmin(admin.ModelAdmin):
                 def __init__(self, campaign):
                     self.campaign = campaign
             
-            set_profile_state(SimpleSession(deal.campaign), lead_id, ProfileState.CONNECTED.value, reason="skipped_via_django_admin")
+            set_profile_state(SimpleSession(deal.campaign), lead_id, ProfileState.CONNECTED.value, reason="skipped_via_django_admin", enqueue_task=False)
+            from linkedin.tasks.scheduler import enqueue_follow_up
+            enqueue_follow_up(deal.campaign.id, lead_id, delay_seconds=24 * 3600)
             
             # Edit Telegram original message
             token = os.environ.get("TELEGRAM_BOT_TOKEN")

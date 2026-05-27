@@ -69,7 +69,7 @@ def _inspect_ui(session, profile: Dict[str, Any]) -> ProfileState:
 
     logger.debug("UI → no connect/pending indicators — dumping page")
     dump_page_html(session, profile, category="status")
-    return ProfileState.QUALIFIED
+    return ProfileState.CONNECTED
 
 
 def _has_connect_in_more(session, top_card) -> bool:

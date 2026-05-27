@@ -3,6 +3,13 @@
 from django.db import migrations, models
 
 
+def sync_original_limits(apps, schema_editor):
+    LinkedInProfile = apps.get_model('linkedin', 'LinkedInProfile')
+    for profile in LinkedInProfile.objects.all():
+        profile.original_connect_daily_limit = profile.connect_daily_limit
+        profile.save(update_fields=['original_connect_daily_limit'])
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -15,6 +22,7 @@ class Migration(migrations.Migration):
             name='original_connect_daily_limit',
             field=models.PositiveIntegerField(default=20),
         ),
+        migrations.RunPython(sync_original_limits, reverse_code=migrations.RunPython.noop),
         migrations.AlterField(
             model_name='task',
             name='task_type',
