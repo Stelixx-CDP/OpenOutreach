@@ -7,6 +7,16 @@ from linkedin.enums import ProfileState
 
 logger = logging.getLogger(__name__)
 
+
+class CampaignOnlySession:
+    """Lightweight session stub for state transitions that don't need a browser.
+
+    Used by the Telegram listener and Django Admin to call
+    ``set_profile_state`` without a full ``AccountSession``.
+    """
+    def __init__(self, campaign):
+        self.campaign = campaign
+
 _STATE_LOG_STYLE = {
     ProfileState.QUALIFIED: ("QUALIFIED", "green", []),
     ProfileState.READY_TO_CONNECT: ("READY_TO_CONNECT", "yellow", ["bold"]),
@@ -100,6 +110,20 @@ def set_profile_state(session, public_identifier: str, new_state: str, reason: s
     state_changed = (deal.state != ps)
 
     deal.state = ps
+
+    # P1 Safety: associate Deal with LinkedInProfile only when transition to PENDING (bot sends invitation)
+    # Owner should be permanent for cohort metrics and not overwritten by subsequent transitions.
+    if hasattr(session, "linkedin_profile") and session.linkedin_profile:
+        if state_changed and ps == ProfileState.PENDING:
+            deal.linkedin_profile = session.linkedin_profile
+
+    if state_changed and ps == ProfileState.CONNECTED and not deal.connected_at:
+        from django.utils import timezone
+        deal.connected_at = timezone.now()
+
+    if state_changed and ps == ProfileState.PENDING and not deal.connect_sent_at:
+        from django.utils import timezone
+        deal.connect_sent_at = timezone.now()
 
     if reason:
         deal.reason = reason

@@ -36,25 +36,21 @@ class TestAutoThrottle:
         lp = fake_session.linkedin_profile
         campaign = fake_session.campaign
         
-        # Create 10 sent connects in last 7 days
-        for _ in range(10):
-            ActionLog.objects.create(
-                linkedin_profile=lp,
-                campaign=campaign,
-                action_type=ActionLog.ActionType.CONNECT
-            )
-            
-        # Create 3 accepted deals in last 7 days
+        # Create 10 sent connects in last 7 days (via Deals with connect_sent_at populated)
         from crm.models import Lead
-        for i in range(3):
+        for i in range(10):
             lead = Lead.objects.create(
                 public_identifier=f"lead_{i}",
                 linkedin_url=f"https://linkedin.com/in/lead_{i}"
             )
+            # 3 accepted, 7 pending
+            state = ProfileState.CONNECTED.value if i < 3 else ProfileState.PENDING.value
             Deal.objects.create(
                 lead=lead,
                 campaign=campaign,
-                state=ProfileState.CONNECTED.value
+                linkedin_profile=lp,
+                state=state,
+                connect_sent_at=timezone.now()
             )
             
         rate = compute_acceptance_rate_7d(lp)
@@ -71,22 +67,20 @@ class TestAutoThrottle:
         lp.save()
         
         # 10 sent, 1 accepted (10% < 15%)
-        for _ in range(10):
-            ActionLog.objects.create(
-                linkedin_profile=lp,
-                campaign=campaign,
-                action_type=ActionLog.ActionType.CONNECT
-            )
         from crm.models import Lead
-        lead = Lead.objects.create(
-            public_identifier="lead_under_throttle",
-            linkedin_url="https://linkedin.com/in/lead_under_throttle"
-        )
-        Deal.objects.create(
-            lead=lead,
-            campaign=campaign,
-            state=ProfileState.CONNECTED.value
-        )
+        for i in range(10):
+            lead = Lead.objects.create(
+                public_identifier=f"lead_{i}",
+                linkedin_url=f"https://linkedin.com/in/lead_{i}"
+            )
+            state = ProfileState.CONNECTED.value if i == 0 else ProfileState.PENDING.value
+            Deal.objects.create(
+                lead=lead,
+                campaign=campaign,
+                linkedin_profile=lp,
+                state=state,
+                connect_sent_at=timezone.now()
+            )
         
         auto_throttle_check(lp)
         
@@ -111,22 +105,19 @@ class TestAutoThrottle:
         lp.save()
         
         # 10 sent, 4 accepted (40% > 30%)
-        for _ in range(10):
-            ActionLog.objects.create(
-                linkedin_profile=lp,
-                campaign=campaign,
-                action_type=ActionLog.ActionType.CONNECT
-            )
         from crm.models import Lead
-        for i in range(4):
+        for i in range(10):
             lead = Lead.objects.create(
-                public_identifier=f"lead_restore_{i}",
-                linkedin_url=f"https://linkedin.com/in/lead_restore_{i}"
+                public_identifier=f"lead_{i}",
+                linkedin_url=f"https://linkedin.com/in/lead_{i}"
             )
+            state = ProfileState.CONNECTED.value if i < 4 else ProfileState.PENDING.value
             Deal.objects.create(
                 lead=lead,
                 campaign=campaign,
-                state=ProfileState.CONNECTED.value
+                linkedin_profile=lp,
+                state=state,
+                connect_sent_at=timezone.now()
             )
             
         auto_throttle_check(lp)

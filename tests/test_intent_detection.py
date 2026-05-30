@@ -30,6 +30,8 @@ def _make_connected(session, public_id="alice"):
     deal = Deal.objects.get(lead__public_identifier=public_id, campaign=session.campaign)
     deal.profile_summary = {"first_name": "Alice", "last_name": "Smith"}
     deal.state = ProfileState.CONNECTED.value
+    deal.linkedin_profile = session.linkedin_profile
+    deal.connect_sent_at = timezone.now()
     deal.save()
     # Clear tasks so we can check task enqueuing cleanly
     Task.objects.all().delete()
@@ -37,6 +39,11 @@ def _make_connected(session, public_id="alice"):
 
 @pytest.mark.django_db
 class TestIntentDetectionAndEscalation:
+
+    @pytest.fixture(autouse=True)
+    def _mock_sync(self):
+        with patch("linkedin.db.chat.sync_conversation") as mock:
+            yield mock
 
     def test_render_prompt_classification(self, fake_session):
         """Verify new classification instructions are rendered in follow_up prompt."""

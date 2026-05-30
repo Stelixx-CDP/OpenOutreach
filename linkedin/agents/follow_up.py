@@ -216,17 +216,15 @@ def _render_system_prompt(
 def run_follow_up_agent(session, deal) -> FollowUpDecision:
     """Read conversation and return a structured follow-up decision.
 
-    Sync chat first (which folds new messages into ``deal.chat_summary``),
-    then render the prompt from the Deal's persistent summaries plus a small
+    Render the prompt from the Deal's persistent summaries plus a small
     recency window of verbatim messages, and ask the LLM to decide.
     """
-    from linkedin.db.chat import sync_conversation
     from linkedin.agents.name_safety import extract_safe_first_name
     from linkedin.agents.conversation_mode import compute_conversation_mode
     from linkedin.agents.output_validator import generate_with_retry
 
     public_id = deal.lead.public_identifier
-    sync_conversation(session, public_id)
+    # sync_conversation has been run at the parent handle_follow_up task layer
     deal.refresh_from_db(fields=["chat_summary", "profile_summary"])
     _log_chat_facts(public_id, deal)
 

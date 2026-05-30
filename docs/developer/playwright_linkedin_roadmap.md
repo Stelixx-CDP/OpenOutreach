@@ -1,4 +1,8 @@
-# playwright-linkedin — Extraction Roadmap
+# [HISTORICAL / ARCHIVED ROADMAP] playwright-linkedin — Extraction Roadmap
+
+> [!WARNING]
+> **TÀI LIỆU LƯU TRỮ LỊCH SỬ - KHÔNG CÒN HOẠT ĐỘNG (ARCHIVED / OUTDATED)**
+> Tài liệu này mô tả lộ trình tách thư viện `playwright-linkedin` trong lịch sử của dự án. Một số tính năng như cơ chế gửi message đã thay đổi (ví dụ: popup message strategy đã bị loại bỏ hoàn toàn, chỉ dùng cơ chế `API → thread`). Vui lòng tham khảo [ARCHITECTURE.md](architecture.md) để biết kiến trúc hiện tại.
 
 ## What
 
@@ -99,7 +103,7 @@ Cookies are strings passed by the caller. The library never reads or writes file
 | `linkedin/browser/session.py` | Thin session object (page + context + browser) — strip Django parts |
 | `linkedin/browser/nav.py` | `goto_page`, `human_type`, `find_top_card` — **without** `_discover_and_enrich` |
 | `linkedin/actions/profile.py` | `scrape_profile` — pure API wrapper |
-| `linkedin/actions/message.py` | `send_raw_message` — multi-path send (API → popup → thread). No CRM imports |
+| `linkedin/actions/message.py` | `send_raw_message` — multi-path send (API → thread). No CRM imports |
 | `linkedin/actions/connect.py` | `send_connection_request` — UI-driven, no DB coupling |
 | `linkedin/actions/status.py` | `get_connection_status` — UI inspection + API degree check |
 | `linkedin/actions/search.py` | `visit_profile`, `search_people` — navigation helpers |

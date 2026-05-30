@@ -52,6 +52,9 @@ def _too_soon_to_nudge(deal) -> bool:
     return timezone.now() - last.creation_date < required
 
 
+
+
+
 def should_require_approval(deal, decision) -> bool:
     """Determine if the calculated decision requires human approval."""
     if decision.action != "send_message":
@@ -85,7 +88,7 @@ def handle_follow_up(task, session, qualifiers):
     from linkedin.db.summaries import materialize_profile_summary_if_missing
     from linkedin.enums import ProfileState
     from linkedin.tasks.scheduler import enqueue_follow_up
-
+    from linkedin.db.chat import sync_conversation
 
     payload = task.payload
     public_id = payload["public_id"]
@@ -95,11 +98,6 @@ def handle_follow_up(task, session, qualifiers):
         "[%s] %s %s",
         session.campaign, colored("\u25b6 follow_up", "green", attrs=["bold"]), public_id,
     )
-
-    # Rate limit check
-    if not session.linkedin_profile.can_execute(ActionLog.ActionType.FOLLOW_UP):
-        enqueue_follow_up(campaign_id, public_id, delay_seconds=3600)
-        return
 
     deal = (
         Deal.objects.filter(lead__public_identifier=public_id, campaign=session.campaign)
@@ -115,40 +113,21 @@ def handle_follow_up(task, session, qualifiers):
         logger.info("follow_up: deal %s in state %s, not CONNECTED — skipping", public_id, deal.state)
         return
 
+    # 1. Sync conversation immediately so we have the latest messages before too_soon_to_nudge checks
+    sync_conversation(session, public_id)
+    deal.refresh_from_db(fields=["chat_summary"])
+
+    # 2. Too soon to nudge check (now with guaranteed fresh messages)
     if _too_soon_to_nudge(deal):
         logger.info("[%s] follow_up %s: too soon to nudge — re-enqueuing", session.campaign, public_id)
         enqueue_follow_up(campaign_id, public_id, delay_seconds=24 * 3600)
         return
 
+
     materialize_profile_summary_if_missing(deal, session)
     decision = run_follow_up_agent(session, deal)
 
-    if should_require_approval(deal, decision):
-        from linkedin.models import PendingMessage
-        pending = PendingMessage.objects.create(
-            deal=deal,
-            message_text=decision.message,
-            decision_json={
-                "action": decision.action,
-                "message": decision.message,
-                "outcome": decision.outcome,
-                "follow_up_hours": decision.follow_up_hours,
-                "intent": decision.intent,
-                "situation": decision.situation,
-            }
-        )
-        set_profile_state(session, public_id, ProfileState.WAITING_APPROVAL.value, reason="waiting_approval")
-        
-        from linkedin.notifications import safe_notify
-        safe_notify(
-            "pending_approval",
-            pending_message=pending,
-            campaign=deal.campaign,
-        )
-        return
-
-    profile = build_send_profile(deal)
-
+    # Escalation check MUST happen BEFORE the approval gate
     # Only escalate if action is NOT mark_completed
     should_escalate = (
         decision.intent == "high" or decision.situation == "needs_human"
@@ -178,21 +157,61 @@ def handle_follow_up(task, session, qualifiers):
             campaign=deal.campaign,
         )
 
+        # Only send bridge message if rate limit allows
         if decision.action == "send_message":
-            logger.info("[%s] follow_up bridge message for escalated %s: %s", session.campaign, public_id, decision.message)
-            sent = send_raw_message(session, profile, decision.message)
-            if sent:
-                session.linkedin_profile.record_action(
-                    ActionLog.ActionType.FOLLOW_UP, session.campaign,
-                )
+            if session.linkedin_profile.can_execute(ActionLog.ActionType.FOLLOW_UP):
+                logger.info("[%s] follow_up bridge message for escalated %s: %s", session.campaign, public_id, decision.message)
+                profile = build_send_profile(deal)
+                sent = send_raw_message(session, profile, decision.message)
+                if sent:
+                    session.linkedin_profile.record_action(
+                        ActionLog.ActionType.FOLLOW_UP, session.campaign,
+                    )
+            else:
+                logger.warning("[%s] follow_up bridge message for %s skipped due to rate limit", session.campaign, public_id)
         return
 
+    # Check approval gate after escalation check (approval itself does not send message directly, so no rate limit check needed yet)
+    if should_require_approval(deal, decision):
+        from linkedin.models import PendingMessage
+        pending, _created = PendingMessage.objects.update_or_create(
+            deal=deal,
+            defaults={
+                "message_text": decision.message,
+                "decision_json": {
+                    "action": decision.action,
+                    "message": decision.message,
+                    "outcome": decision.outcome,
+                    "follow_up_hours": decision.follow_up_hours,
+                    "intent": decision.intent,
+                    "situation": decision.situation,
+                },
+            }
+        )
+        set_profile_state(session, public_id, ProfileState.WAITING_APPROVAL.value, reason="waiting_approval")
+
+        from linkedin.notifications import safe_notify
+        safe_notify(
+            "pending_approval",
+            pending_message=pending,
+            campaign=deal.campaign,
+        )
+        return
+
+    profile = build_send_profile(deal)
+
     if decision.action == "send_message":
+        # P1 Rate limit separation: check rate limit ONLY for outbound send_message
+        if not session.linkedin_profile.can_execute(ActionLog.ActionType.FOLLOW_UP):
+            logger.info("[%s] follow_up message for %s skipped sending due to rate limit — deferred 1h", session.campaign, public_id)
+            enqueue_follow_up(campaign_id, public_id, delay_seconds=3600)
+            return
+
         logger.info("[%s] follow_up message for %s: %s", session.campaign, public_id, decision.message)
         sent = send_raw_message(session, profile, decision.message)
         if not sent:
-            set_profile_state(session, public_id, ProfileState.QUALIFIED.value)
-            logger.warning("follow_up for %s: send failed — moving to QUALIFIED for re-connection", public_id)
+            logger.warning("follow_up for %s: send failed — re-enqueuing in 1h", public_id)
+            enqueue_follow_up(campaign_id, public_id, delay_seconds=3600)
             return
         session.linkedin_profile.record_action(
             ActionLog.ActionType.FOLLOW_UP, session.campaign,

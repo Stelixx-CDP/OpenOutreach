@@ -18,27 +18,15 @@ logger = logging.getLogger(__name__)
     retry=retry_if_exception_type(IOError),
     reraise=True,
 )
-def send_message(
+def _send_message_raw(
         api: PlaywrightLinkedinAPI,
         conversation_urn: str,
         message_text: str,
         mailbox_urn: str,
+        origin_token: str,
+        tracking_id: str,
 ) -> dict:
-    """Send a message via Voyager Messaging API.
-
-    Args:
-        api: Authenticated PlaywrightLinkedinAPI instance.
-        conversation_urn: e.g. "urn:li:msg_conversation:(urn:li:fsd_profile:XXX,2-threadId)"
-        message_text: The message body.
-        mailbox_urn: Sender's profile URN.
-
-    Returns:
-        API response dict with delivery confirmation.
-    """
-
-    origin_token = str(uuid.uuid4())
-    tracking_id = os.urandom(16).hex()
-
+    """Raw API call wrapped in retry logic, using pre-stabilized tokens."""
     payload = {
         "message": {
             "body": {
@@ -51,7 +39,7 @@ def send_message(
         },
         "mailboxUrn": mailbox_urn,
         "trackingId": tracking_id,
-        "dedupeByClientGeneratedToken": False,
+        "dedupeByClientGeneratedToken": True,
     }
 
     url = (
@@ -63,7 +51,7 @@ def send_message(
     headers["accept"] = "application/json"
     headers["content-type"] = "text/plain;charset=UTF-8"
 
-    logger.debug("Voyager send_message → %s", conversation_urn)
+    logger.debug("Voyager _send_message_raw → %s", conversation_urn)
 
     res = api.post(url, headers=headers, data=json.dumps(payload))
     check_response(res, "send_message")
@@ -72,6 +60,47 @@ def send_message(
     delivered_at = data.get("value", {}).get("deliveredAt")
     logger.info("Message delivered → %s (at %s)", conversation_urn, delivered_at)
     return data
+
+
+def send_message(
+        api: PlaywrightLinkedinAPI,
+        conversation_urn: str,
+        message_text: str,
+        mailbox_urn: str,
+        origin_token: str | None = None,
+        tracking_id: str | None = None,
+) -> dict:
+    """Send a message via Voyager Messaging API.
+
+    Args:
+        api: Authenticated PlaywrightLinkedinAPI instance.
+        conversation_urn: e.g. "urn:li:msg_conversation:(urn:li:fsd_profile:XXX,2-threadId)"
+        message_text: The message body.
+        mailbox_urn: Sender's profile URN.
+        origin_token: Optional pre-generated unique token for idempotency.
+        tracking_id: Optional pre-generated tracking ID.
+
+    Returns:
+        API response dict with delivery confirmation.
+    """
+
+    if not origin_token or not tracking_id:
+        # Generate a unique originToken and trackingId per logical send attempt.
+        # Since connection retries happen safely inside _send_message_raw (using tenacity @retry),
+        # these tokens will remain stable during retries, while ensuring subsequent separate wrapper calls
+        # with the same content are not deduped by LinkedIn.
+        raw_uuid = uuid.uuid4()
+        origin_token = origin_token or str(raw_uuid)
+        tracking_id = tracking_id or raw_uuid.hex
+
+    return _send_message_raw(
+        api=api,
+        conversation_urn=conversation_urn,
+        message_text=message_text,
+        mailbox_urn=mailbox_urn,
+        origin_token=origin_token,
+        tracking_id=tracking_id,
+    )
 
 
 if __name__ == "__main__":

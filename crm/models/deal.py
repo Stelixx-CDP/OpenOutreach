@@ -28,6 +28,13 @@ class Deal(models.Model):
     campaign = models.ForeignKey(
         "linkedin.Campaign", on_delete=models.CASCADE, related_name="deals",
     )
+    linkedin_profile = models.ForeignKey(
+        "linkedin.LinkedInProfile",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="deals"
+    )
     state = models.CharField(
         max_length=20,
         choices=[(s.value, s.value) for s in ProfileState],
@@ -42,6 +49,8 @@ class Deal(models.Model):
     reason = models.TextField(blank=True, default="")
     connect_attempts = models.IntegerField(default=0)
     backoff_hours = models.IntegerField(default=0)
+    connected_at = models.DateTimeField(null=True, blank=True)
+    connect_sent_at = models.DateTimeField(null=True, blank=True)
     profile_summary = models.JSONField(null=True, blank=True, default=None)
     chat_summary = models.JSONField(null=True, blank=True, default=None)
     creation_date = models.DateTimeField(default=timezone.now)
@@ -50,3 +59,10 @@ class Deal(models.Model):
     def __str__(self):
         lead_str = str(self.lead) if self.lead_id else "?"
         return f"{lead_str} [{self.state}]"
+
+    def save(self, *args, **kwargs):
+        if self.state == ProfileState.PENDING.value and not self.connect_sent_at:
+            self.connect_sent_at = timezone.now()
+        if self.state == ProfileState.CONNECTED.value and not self.connected_at:
+            self.connected_at = timezone.now()
+        super().save(*args, **kwargs)

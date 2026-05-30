@@ -116,15 +116,9 @@ def listen_to_telegram(*, max_iterations: int | None = None) -> None:
                                     original_message=pending.message_text,
                                     feedback_type=AgentFeedback.FeedbackType.APPROVED,
                                 )
-                                # Queue send approved task
-                                Task.objects.create(
-                                    task_type=Task.TaskType.SEND_APPROVED_MESSAGE,
-                                    scheduled_at=timezone.now(),
-                                    payload={
-                                        "campaign_id": deal.campaign_id,
-                                        "pending_message_id": pending.id,
-                                    }
-                                )
+                                # Queue send approved task via scheduler helper (single source of truth)
+                                from linkedin.tasks.scheduler import enqueue_send_approved_message
+                                enqueue_send_approved_message(deal.campaign_id, pending.id)
                                 # Update original message
                                 new_text = (
                                     f"✅ <b>Đã duyệt và đang xếp lịch gửi:</b>\n"
@@ -147,13 +141,9 @@ def listen_to_telegram(*, max_iterations: int | None = None) -> None:
                                     feedback_type=AgentFeedback.FeedbackType.REJECTED,
                                 )
                                 # Move deal back to CONNECTED using set_profile_state
-                                from linkedin.db.deals import set_profile_state
-                                class SimpleSession:
-                                    def __init__(self, campaign):
-                                        self.campaign = campaign
+                                from linkedin.db.deals import set_profile_state, CampaignOnlySession
 
-                                mock_session = SimpleSession(deal.campaign)
-                                set_profile_state(mock_session, lead_id, ProfileState.CONNECTED.value, reason="skipped_by_user", enqueue_task=False)
+                                set_profile_state(CampaignOnlySession(deal.campaign), lead_id, ProfileState.CONNECTED.value, reason="skipped_by_user", enqueue_task=False)
                                 from linkedin.tasks.scheduler import enqueue_follow_up
                                 enqueue_follow_up(deal.campaign.id, lead_id, delay_seconds=24 * 3600)
 
@@ -222,15 +212,9 @@ def listen_to_telegram(*, max_iterations: int | None = None) -> None:
                                 pending.message_text = text
                                 pending.save(update_fields=["message_text"])
 
-                                # Queue send approved task
-                                Task.objects.create(
-                                    task_type=Task.TaskType.SEND_APPROVED_MESSAGE,
-                                    scheduled_at=timezone.now(),
-                                    payload={
-                                        "campaign_id": deal.campaign_id,
-                                        "pending_message_id": pending.id,
-                                    }
-                                )
+                                # Queue send approved task via scheduler helper (single source of truth)
+                                from linkedin.tasks.scheduler import enqueue_send_approved_message
+                                enqueue_send_approved_message(deal.campaign_id, pending.id)
 
                                 # Update original pending message
                                 new_orig_text = (

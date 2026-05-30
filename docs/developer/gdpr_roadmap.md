@@ -1,4 +1,8 @@
-# GDPR Implementation Roadmap — OpenOutreach
+# [HISTORICAL / ARCHIVED ROADMAP] GDPR Implementation Roadmap — OpenOutreach
+
+> [!WARNING]
+> **TÀI LIỆU LƯU TRỮ LỊCH SỬ - KHÔNG CÒN HOẠT ĐỘNG (ARCHIVED / OUTDATED)**
+> Tài liệu này mô tả lộ trình GDPR lịch sử của dự án. Một số thành phần như `Lead.profile_data` và `db/enrichment.py` đã bị loại bỏ hoặc tái cấu trúc hoàn toàn. Vui lòng tham khảo [ARCHITECTURE.md](architecture.md) để biết kiến trúc hiện tại.
 
 Implementation plan for the compliance gaps identified in [GDPR_COMPLIANCE_REPORT.md](GDPR_COMPLIANCE_REPORT.md).
 

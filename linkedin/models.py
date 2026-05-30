@@ -34,6 +34,39 @@ class EncryptedCharField(models.CharField):
         return value
 
 
+class EncryptedJSONField(models.TextField):
+    """TextField that stores encrypted JSON strings."""
+
+    def from_db_value(self, value, expression, connection):
+        if value:
+            from linkedin.crypto import decrypt_value
+            decrypted = decrypt_value(value)
+            if decrypted:
+                import json
+                try:
+                    return json.loads(decrypted)
+                except json.JSONDecodeError:
+                    pass
+        return value
+
+    def to_python(self, value):
+        if isinstance(value, str) and value:
+            import json
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                pass
+        return value
+
+    def get_prep_value(self, value):
+        if value is not None:
+            from linkedin.crypto import encrypt_value
+            import json
+            serialized = json.dumps(value)
+            return encrypt_value(serialized)
+        return value
+
+
 class SiteConfig(models.Model):
     """Singleton model for global site configuration (LLM keys, etc.)."""
 
@@ -123,7 +156,7 @@ class LinkedInProfile(models.Model):
     connect_weekly_limit = models.PositiveIntegerField(default=100)
     follow_up_daily_limit = models.PositiveIntegerField(default=25)
     legal_accepted = models.BooleanField(default=False)
-    cookie_data = models.JSONField(null=True, blank=True)
+    cookie_data = EncryptedJSONField(null=True, blank=True)
     newsletter_processed = models.BooleanField(default=False)
 
     def __init__(self, *args, **kwargs):
@@ -240,7 +273,19 @@ class TaskQuerySet(models.QuerySet):
         return self.filter(status=Task.Status.PENDING).order_by("scheduled_at")
 
     def claim_next(self) -> "Task | None":
-        return self.pending().filter(scheduled_at__lte=timezone.now()).first()
+        from django.db import connection, transaction, NotSupportedError
+        with transaction.atomic():
+            qs = self.pending().filter(scheduled_at__lte=timezone.now())
+            if connection.vendor == 'postgresql':
+                try:
+                    task = qs.select_for_update(skip_locked=True).first()
+                except NotSupportedError:
+                    task = qs.first()
+            else:
+                task = qs.first()
+            if task:
+                task.mark_running()
+            return task
 
     def seconds_to_next(self) -> float | None:
         """Seconds until the next pending task, or None if queue is empty."""

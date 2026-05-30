@@ -122,6 +122,23 @@ def enqueue_follow_up(
     )
 
 
+def enqueue_send_approved_message(
+    campaign_id: int,
+    pending_message_id: int,
+    delay_seconds: float = 0,
+) -> bool:
+    """Enqueue a SEND_APPROVED_MESSAGE task, ensuring no duplicate exists for this pending message."""
+    return _insert_task(
+        task_type=Task.TaskType.SEND_APPROVED_MESSAGE,
+        payload={
+            "campaign_id": campaign_id,
+            "pending_message_id": pending_message_id,
+        },
+        delay_seconds=delay_seconds,
+        dedup_keys=["pending_message_id"],
+    )
+
+
 # ── Delay helpers ─────────────────────────────────────────────────────
 
 
@@ -200,6 +217,19 @@ def _seed_deal_tasks(session) -> None:
             on_deal_state_entered(deal)
 
 
+def enqueue_withdraw_old_invites(
+    profile_id: int,
+    delay_seconds: float = 10,
+) -> None:
+    """Enqueue a withdraw_old_invites task for a profile."""
+    _insert_task(
+        task_type=Task.TaskType.WITHDRAW_OLD_INVITES,
+        payload={"profile_id": profile_id},
+        delay_seconds=delay_seconds,
+        dedup_keys=["profile_id"],
+    )
+
+
 def _seed_withdraw_tasks(session) -> None:
     """Ensure one withdraw_old_invites task per profile (not per campaign)."""
     profile_id = session.linkedin_profile.pk
@@ -223,24 +253,13 @@ def _seed_withdraw_tasks(session) -> None:
 
     if last_completed and last_completed.completed_at:
         next_run = last_completed.completed_at + datetime.timedelta(days=7)
-        if next_run > timezone.now():
-            # Schedule for the future
-            Task.objects.create(
-                task_type=Task.TaskType.WITHDRAW_OLD_INVITES,
-                status=Task.Status.PENDING,
-                scheduled_at=next_run,
-                payload={"profile_id": profile_id},
-            )
-            logger.info("Scheduled next withdraw task for profile %d at %s", profile_id, next_run)
-            return
+        delay = max(0, (next_run - timezone.now()).total_seconds())
+        enqueue_withdraw_old_invites(profile_id, delay_seconds=delay)
+        logger.info("Scheduled next withdraw task for profile %d at %s", profile_id, next_run)
+        return
 
     # No active task and no recent completed task -> run now (with a tiny delay)
-    Task.objects.create(
-        task_type=Task.TaskType.WITHDRAW_OLD_INVITES,
-        status=Task.Status.PENDING,
-        scheduled_at=timezone.now() + datetime.timedelta(seconds=10),
-        payload={"profile_id": profile_id},
-    )
+    enqueue_withdraw_old_invites(profile_id, delay_seconds=10)
     logger.info("Enqueued immediate withdraw task for profile %d", profile_id)
 
 

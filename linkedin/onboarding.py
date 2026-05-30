@@ -51,6 +51,18 @@ class OnboardConfig:
     follow_up_daily_limit: int = DEFAULT_FOLLOW_UP_DAILY_LIMIT
     legal_acceptance: bool = False
 
+    @classmethod
+    def from_json(cls, path: str | Path) -> OnboardConfig:
+        import json
+        from pathlib import Path
+        p = Path(path)
+        if not p.exists():
+            raise FileNotFoundError(f"Config file not found: {path}")
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        filtered = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
+        return cls(**filtered)
+
 
 # ---------------------------------------------------------------------------
 # State inspection

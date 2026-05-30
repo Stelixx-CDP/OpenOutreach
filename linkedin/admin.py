@@ -73,6 +73,9 @@ class PendingMessageAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at",)
     actions = ["approve_messages", "skip_messages"]
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("deal__campaign", "deal__lead")
+
     @admin.action(description="Approve selected messages")
     def approve_messages(self, request, queryset):
         import os
@@ -90,15 +93,9 @@ class PendingMessageAdmin(admin.ModelAdmin):
                 original_message=pending.message_text,
                 feedback_type=AgentFeedback.FeedbackType.APPROVED,
             )
-            # Create Task
-            Task.objects.create(
-                task_type=Task.TaskType.SEND_APPROVED_MESSAGE,
-                scheduled_at=timezone.now(),
-                payload={
-                    "campaign_id": pending.deal.campaign_id,
-                    "pending_message_id": pending.id,
-                }
-            )
+            # Create Task via scheduler helper (single source of truth)
+            from linkedin.tasks.scheduler import enqueue_send_approved_message
+            enqueue_send_approved_message(pending.deal.campaign_id, pending.id)
             count += 1
             
             # Edit Telegram original message if configured
@@ -145,12 +142,9 @@ class PendingMessageAdmin(admin.ModelAdmin):
             )
             
             # Move deal back to CONNECTED using set_profile_state
-            from linkedin.db.deals import set_profile_state
-            class SimpleSession:
-                def __init__(self, campaign):
-                    self.campaign = campaign
+            from linkedin.db.deals import set_profile_state, CampaignOnlySession
             
-            set_profile_state(SimpleSession(deal.campaign), lead_id, ProfileState.CONNECTED.value, reason="skipped_via_django_admin", enqueue_task=False)
+            set_profile_state(CampaignOnlySession(deal.campaign), lead_id, ProfileState.CONNECTED.value, reason="skipped_via_django_admin", enqueue_task=False)
             from linkedin.tasks.scheduler import enqueue_follow_up
             enqueue_follow_up(deal.campaign.id, lead_id, delay_seconds=24 * 3600)
             

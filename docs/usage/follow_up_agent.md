@@ -41,7 +41,7 @@ handle_follow_up()           ← linkedin/tasks/follow_up.py
                   ├───────────────────────────────┐
                   ▼ (auto or no match)            ▼ (matches)
          [Execute Send Message]           Transition to WAITING_APPROVAL
-         - 3 fallback strategies          - Create PendingMessage
+         - 2 fallback strategies          - Create PendingMessage
          - Re-enqueue follow_up           - Send Telegram Alert (Approve/Skip/Edit)
                                           - Approve -> send_approved_message Task
                                           - Edit -> AgentFeedback + send_approved_message Task
@@ -130,16 +130,15 @@ is redundant (NONE).
 
 ## Message Sending
 
-`send_raw_message()` in `linkedin/actions/message.py` tries three strategies in
+`send_raw_message()` in `linkedin/actions/message.py` tries two fallback strategies in
 order, returning `True` on the first success:
 
 | # | Strategy | Method |
 |---|----------|--------|
-| 1 | **Popup compose** | Open Message popup on profile page, type, send |
-| 2 | **Direct thread** | Navigate to `/messaging/thread/new/?recipient=<urn>`, compose, send |
-| 3 | **Voyager API** | REST API call via `api/messaging/send.py` |
+| 1 | **Direct thread** | Navigate to `/messaging/thread/new/?recipient=<urn>`, compose, send |
+| 2 | **Voyager API** | REST API call via `api/messaging/send.py` |
 
-Each strategy uses the lead's URN (stored on `Lead.urn`). If all three fail,
+Each strategy uses the lead's URN (stored on `Lead.urn`). If both fail,
 `handle_follow_up` reverts the Deal to QUALIFIED for re-connection.
 
 ## Scheduling & Deduplication

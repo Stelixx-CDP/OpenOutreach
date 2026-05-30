@@ -344,7 +344,6 @@ def run_daemon(session):
             continue
 
         session.campaign = campaign
-        task.mark_running()
 
         handler = _HANDLERS.get(task.task_type)
         if handler is None:
@@ -354,6 +353,20 @@ def run_daemon(session):
 
         from playwright.sync_api import Error as PlaywrightError
         MAX_BROWSER_RETRIES = 2
+
+        def _is_browser_crash(exc: Exception) -> bool:
+            """True if the error indicates the browser/page crashed (worth restarting)."""
+            msg = str(exc).lower()
+            # Playwright raises Error("Closed") when the browser dies unexpectedly
+            if msg.strip() == "closed":
+                return True
+            return any(k in msg for k in (
+                "target closed", "browser has been closed", "page has been closed",
+                "context has been closed", "channel closed", "connection closed",
+                "navigation failed", "frame was detached",
+                "process exited", "crashed",
+            ))
+
         try:
             for attempt in range(MAX_BROWSER_RETRIES + 1):
                 try:
@@ -361,9 +374,9 @@ def run_daemon(session):
                         handler(task, session, qualifiers)
                     break
                 except (PlaywrightError, TimeoutError) as e:
-                    if attempt < MAX_BROWSER_RETRIES:
+                    if attempt < MAX_BROWSER_RETRIES and _is_browser_crash(e):
                         logger.warning(
-                            "Browser/Playwright error during task %s (attempt %d/%d): %s. Re-launching session...",
+                            "Browser crash during task %s (attempt %d/%d): %s. Re-launching session...",
                             task, attempt + 1, MAX_BROWSER_RETRIES, e
                         )
                         try:

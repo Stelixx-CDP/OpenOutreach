@@ -56,7 +56,7 @@ class Command(BaseCommand):
             connects_accepted = Deal.objects.filter(
                 campaign=campaign,
                 state__in=[ProfileState.CONNECTED, ProfileState.COMPLETED, ProfileState.ESCALATED, ProfileState.WAITING_APPROVAL],
-                update_date__range=(today_start, today_end)
+                connected_at__range=(today_start, today_end)
             ).count()
             total_connects_accepted += connects_accepted
 
@@ -182,11 +182,11 @@ class Command(BaseCommand):
             created_at__range=(seven_days_ago, today_end)
         ).count()
         # Count deals whose connect was sent in the 7d window AND are now accepted.
-        # Use creation_date (= when the Deal/connect was created), not update_date
+        # Use connect_sent_at (= when the connect invite was sent), not creation_date or update_date
         # which can be bumped by follow-ups or other state changes.
         accepted_deals_7d = Deal.objects.filter(
             state__in=[ProfileState.CONNECTED, ProfileState.COMPLETED, ProfileState.ESCALATED, ProfileState.WAITING_APPROVAL],
-            creation_date__range=(seven_days_ago, today_end)
+            connect_sent_at__range=(seven_days_ago, today_end)
         )
         accepted_7d = accepted_deals_7d.count()
         acceptance_rate_7d = (accepted_7d / sent_7d * 100) if sent_7d > 0 else 0.0

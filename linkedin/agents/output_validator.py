@@ -186,6 +186,7 @@ def _notify_validation_failure(deal, decision, reason: str) -> None:
             lead=deal.lead.public_identifier,
             rejected_message=decision.message[:200] if decision.message else "(empty)",
             reason=reason[:300],
+            campaign=deal.campaign,
         )
     except Exception:
         logger.exception("Failed to send validation failure notification")

@@ -31,17 +31,17 @@ additional discovery when the candidate pool runs dry.
 For each new URL discovered:
 
 1. **Voyager API** fetches structured profile data (name, headline, positions, education, etc.)
-2. **Lead** is created with the full profile JSON in `description`
+2. **Lead** is created (re-scrape on-demand per `(lead, campaign)` lifetime converts it to a clean facts summary on the `Deal`)
 3. **Embedding** is computed (384-dim BAAI/bge-small-en-v1.5 via fastembed) and stored directly on the Lead's `embedding` BinaryField
 
 All steps happen atomically at discovery time. Rate-limited by a randomized
 `enrich_min_delay_seconds`–`enrich_max_delay_seconds` pause (default 6–10s)
 per profile, capped at `enrich_max_per_page` (default 10) per discovered page.
 
-> **Robustness fallback:** Lazy helpers (`ensure_lead_enriched`,
-> `ensure_profile_embedded`) exist in `db/enrichment.py` for rare edge
+> **Robustness fallback:** Lazy properties (`Lead.get_urn()`,
+> `Lead.get_embedding()`) exist on the `Lead` model for rare edge
 > cases (manual lead creation, interrupted enrichment, DB inconsistency).
-> They log a warning when triggered — this is not normal flow.
+> They log a warning and perform a lazy live scrape + embed when triggered.
 
 ## 3. Qualification (LLM only)
 

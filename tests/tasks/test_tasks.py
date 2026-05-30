@@ -303,6 +303,11 @@ class TestHandleCheckPending:
 
 @pytest.mark.django_db
 class TestHandleFollowUp:
+    @pytest.fixture(autouse=True)
+    def _mock_sync(self):
+        with patch("linkedin.db.chat.sync_conversation") as m:
+            yield m
+
     @patch("linkedin.db.summaries.materialize_profile_summary_if_missing")
     @patch("linkedin.actions.message.send_raw_message", return_value=True)
     @patch("linkedin.agents.follow_up.run_follow_up_agent")
@@ -337,7 +342,7 @@ class TestHandleFollowUp:
     @patch("linkedin.db.summaries.materialize_profile_summary_if_missing")
     @patch("linkedin.actions.message.send_raw_message", return_value=False)
     @patch("linkedin.agents.follow_up.run_follow_up_agent")
-    def test_send_failure_resets_to_connected_and_reenqueues(self, mock_agent, mock_send, mock_materialize, fake_session):
+    def test_send_failure_stays_connected_and_reenqueues(self, mock_agent, mock_send, mock_materialize, fake_session):
         mock_agent.return_value = FollowUpDecision(
             action="send_message", message="Hi!", follow_up_hours=24,
         )
@@ -352,7 +357,13 @@ class TestHandleFollowUp:
 
         assert ActionLog.objects.filter(action_type=ActionLog.ActionType.FOLLOW_UP).count() == 0
         deal = Deal.objects.get(lead__public_identifier="alice", campaign=fake_session.campaign)
-        assert deal.state == ProfileState.QUALIFIED
+        # Send failure keeps deal CONNECTED (not QUALIFIED) to avoid re-sending connect invitation
+        assert deal.state == ProfileState.CONNECTED
+        # Should have re-enqueued follow_up for retry
+        assert Task.objects.filter(
+            task_type=Task.TaskType.FOLLOW_UP, status=Task.Status.PENDING,
+            payload__public_id="alice",
+        ).exists()
 
     @patch("linkedin.db.summaries.materialize_profile_summary_if_missing")
     @patch("linkedin.agents.follow_up.run_follow_up_agent")
@@ -402,7 +413,12 @@ class TestHandleFollowUp:
         handle_follow_up(task, fake_session, qualifiers)
         mock_agent.assert_not_called()
 
-    def test_reschedules_on_rate_limit(self, fake_session):
+    @patch("linkedin.db.summaries.materialize_profile_summary_if_missing")
+    @patch("linkedin.agents.follow_up.run_follow_up_agent")
+    def test_reschedules_on_rate_limit(self, mock_agent, mock_materialize, fake_session):
+        mock_agent.return_value = FollowUpDecision(
+            action="send_message", message="Hi!", follow_up_hours=24,
+        )
         _make_connected(fake_session)
         fake_session.linkedin_profile.follow_up_daily_limit = 0
         fake_session.linkedin_profile.save(update_fields=["follow_up_daily_limit"])

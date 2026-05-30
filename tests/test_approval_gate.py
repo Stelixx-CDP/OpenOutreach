@@ -36,6 +36,8 @@ def _make_connected(session, public_id="bob"):
     deal = Deal.objects.get(lead__public_identifier=public_id, campaign=session.campaign)
     deal.profile_summary = {"first_name": "Bob", "last_name": "Test"}
     deal.state = ProfileState.CONNECTED.value
+    deal.linkedin_profile = session.linkedin_profile
+    deal.connect_sent_at = timezone.now()
     deal.save()
     Task.objects.all().delete()
     PendingMessage.objects.all().delete()
@@ -44,6 +46,11 @@ def _make_connected(session, public_id="bob"):
 
 @pytest.mark.django_db
 class TestApprovalGate:
+
+    @pytest.fixture(autouse=True)
+    def _mock_sync(self):
+        with patch("linkedin.db.chat.sync_conversation") as mock:
+            yield mock
 
     def test_should_require_approval_modes(self, fake_session):
         _make_connected(fake_session, "bob")
@@ -186,7 +193,10 @@ class TestApprovalGate:
             # 4. PendingMessage is deleted
             assert not PendingMessage.objects.filter(pk=pending.id).exists()
 
-    def test_handle_send_approved_message_escalated(self, fake_session):
+    def test_handle_send_approved_message_high_intent_stays_connected(self, fake_session):
+        """Even with high intent/needs_human, send_approved_message always moves
+        to CONNECTED — escalation check runs BEFORE the approval gate in
+        handle_follow_up, so high-intent messages never reach send_approved."""
         _make_connected(fake_session, "bob")
         deal = Deal.objects.get(lead__public_identifier="bob", campaign=fake_session.campaign)
         deal.state = ProfileState.WAITING_APPROVAL.value
@@ -205,30 +215,22 @@ class TestApprovalGate:
             payload={"pending_message_id": pending.id, "campaign_id": fake_session.campaign.pk},
         )
 
-        with (
-            patch("linkedin.actions.message.send_raw_message", return_value=True) as mock_send,
-            patch("linkedin.notifications.safe_notify") as mock_notify,
-        ):
+        with patch("linkedin.actions.message.send_raw_message", return_value=True) as mock_send:
             handle_send_approved_message(task, fake_session, qualifiers=[])
 
             # 1. Message sent
             mock_send.assert_called_once()
 
-            # 2. State changes to ESCALATED
+            # 2. State moves to CONNECTED (not ESCALATED — escalation runs in handle_follow_up)
             deal.refresh_from_db()
-            assert deal.state == ProfileState.ESCALATED.value
+            assert deal.state == ProfileState.CONNECTED.value
 
-            # 3. Telegram escalation notify is triggered
-            mock_notify.assert_any_call(
-                "escalation",
-                public_id="bob",
-                intent="high",
-                situation="needs_human",
-                last_message="(no reply yet)",
-                linkedin_url=deal.lead.linkedin_url,
-                campaign=deal.campaign,
-            )
-            assert mock_notify.call_args[0][0] == "escalation"
+            # 3. Next follow up scheduled
+            assert Task.objects.filter(
+                task_type=Task.TaskType.FOLLOW_UP,
+                status=Task.Status.PENDING,
+                payload__public_id="bob"
+            ).exists()
 
             # 4. PendingMessage deleted
             assert not PendingMessage.objects.filter(pk=pending.id).exists()
@@ -255,10 +257,17 @@ class TestApprovalGate:
         with patch("linkedin.actions.message.send_raw_message", return_value=False) as mock_send:
             handle_send_approved_message(task, fake_session, qualifiers=[])
 
-            # State moves to QUALIFIED
+            # State stays CONNECTED (not QUALIFIED — to avoid re-sending connect invitation)
             deal.refresh_from_db()
-            assert deal.state == ProfileState.QUALIFIED.value
+            assert deal.state == ProfileState.CONNECTED.value
             assert deal.reason == "approved_send_failed"
+
+            # Follow-up re-enqueued for retry
+            assert Task.objects.filter(
+                task_type=Task.TaskType.FOLLOW_UP,
+                status=Task.Status.PENDING,
+                payload__public_id="bob",
+            ).exists()
 
             # PendingMessage is deleted
             assert not PendingMessage.objects.filter(pk=pending.id).exists()

@@ -50,7 +50,7 @@ The system uses Django with SQLite (by default at `data/db.sqlite3`).
   - `public_identifier` (CharField, unique): Derived from URL.
   - `urn` (CharField, unique, nullable): Voyager entity URN.
   - `embedding` (BinaryField): 384-dim fastembed vector as bytes (accessed via `embedding_array` property).
-  - `description` (TextField): Full parsed profile JSON.
+  - *Lazy Live Scrape:* The raw profile JSON data is not persisted in the database; it is retrieved on demand via `get_profile(session)` and processed in memory.
   - `disqualified` (bool): Permanent account-level exclusion.
 - **Deal** (`crm/models/deal.py`) — Tracks campaign-specific state for a Lead.
   - `lead` (FK to Lead): Reference to the lead.
@@ -60,6 +60,7 @@ The system uses Django with SQLite (by default at `data/db.sqlite3`).
   - `reason` (TextField): Free-text qualification reason.
   - `connect_attempts` (int): Number of connection attempts.
   - `backoff_hours` (int): Check pending backoff interval.
+  - `connected_at` (DateTimeField, nullable): Timestamp when the connection request was officially accepted.
   - `profile_summary` / `chat_summary` (JSONField): Lazy, mem0-style campaign-scoped fact lists.
 - **Campaign** (`linkedin/models.py`) — Outreach campaign settings.
   - `name` (CharField, unique): Display name.
@@ -87,7 +88,7 @@ The system uses Django with SQLite (by default at `data/db.sqlite3`).
                                                                ESCALATED (Intent=high / needs_human)
 ```
 
-Pre-Deal states are implicit: a Lead with no description is `url_only`, a Lead with description is `enriched`. `ProfileState` contains: `QUALIFIED`, `READY_TO_CONNECT`, `PENDING`, `CONNECTED`, `WAITING_APPROVAL`, `COMPLETED`, `FAILED`, `ESCALATED`.
+Pre-Deal states are implicit: a Lead exists as a potential candidate, and once promoted it becomes a Deal. `ProfileState` contains: `QUALIFIED`, `READY_TO_CONNECT`, `PENDING`, `CONNECTED`, `WAITING_APPROVAL`, `COMPLETED`, `FAILED`, `ESCALATED`.
 
 ---
 
@@ -135,7 +136,7 @@ OpenOutreach qualifies candidates using active learning with a Gaussian Process 
 Browser actions that orchestrate the browser via Playwright:
 - `connect.py`: Direct connect button targeting, falls back to "More" menu. Sends no note.
 - `status.py`: Resolves connection degree via API decor or UI fallback.
-- `message.py`: Sends DMs using popup, thread navigation, or Voyager API.
+- `message.py`: Sends DMs using thread navigation or Voyager API.
 - `conversations.py`: Syncs conversation history.
 - `search.py`: Handles search results and profile visits.
 
@@ -221,3 +222,19 @@ To protect LinkedIn profiles from being flagged, the system implements three pro
   - Each retry: log warning, close session, `ensure_browser()` to re-launch Chrome, re-run handler.
   - If all retries fail: capture screenshot, send Telegram alert via `safe_notify("browser_crash", ...)`, mark task as `FAILED`.
 
+
+---
+
+## 9. Security Warnings & Technical Debt (Post-Pilot Actions)
+
+> [!CAUTION]
+> **P1 Security/Deploy: Open VNC & Admin Access Warning**
+>
+> In the current pilot/development phase:
+> - `django_settings.py` carries fallback static `SECRET_KEY`, `DEBUG=True`, and `ALLOWED_HOSTS=["*"]`.
+> - `docker-compose.yml` publishes VNC (5900), noVNC (6080) and Django (8000) directly to the external interface (`0.0.0.0`) without requiring a VNC password (`x11vnc -nopw`).
+>
+> **Action Required after Pilot Phase:**
+> Prior to scaling or general production release, the deployment configuration must be hardened:
+> 1. Restrict VNC/noVNC ports to local interfaces (`127.0.0.1`) or enforce passwords via `x11vnc -passwd`.
+> 2. Ensure `DJANGO_SECRET_KEY` is strictly required in the environment (fail-fast if missing), set `DEBUG=False`, and specify explicit `ALLOWED_HOSTS` values.

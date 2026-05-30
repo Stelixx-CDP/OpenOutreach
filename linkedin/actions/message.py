@@ -214,6 +214,9 @@ def _send_message_via_api(session, profile: Dict[str, Any], message: str) -> boo
 
     Requires profile dict to contain 'urn' (target profile URN).
     """
+    import uuid
+    import hashlib
+    import time
     from linkedin.api.client import PlaywrightLinkedinAPI
     from linkedin.api.messaging import send_message
     from linkedin.actions.conversations import find_conversation_urn, find_conversation_urn_via_navigation
@@ -234,8 +237,24 @@ def _send_message_via_api(session, profile: Dict[str, Any], message: str) -> boo
         logger.error("API send failed for %s → no conversation found", public_identifier)
         return False
 
+    # P2 Idempotency: Generate a unique token once for this logical send attempt.
+    # It remains stable even if tenacity retries send_message due to transient network failures.
+    # But because it includes time.time() with microsecond accuracy, future messages with the same content
+    # will get a new unique token and won't be dropped by LinkedIn.
+    hasher = hashlib.md5(f"{conversation_urn}:{message}:{time.time()}".encode("utf-8"))
+    digest = hasher.hexdigest()
+    origin_token = str(uuid.UUID(digest))
+    tracking_id = digest
+
     try:
-        send_message(api, conversation_urn, message, mailbox_urn)
+        send_message(
+            api,
+            conversation_urn,
+            message,
+            mailbox_urn,
+            origin_token=origin_token,
+            tracking_id=tracking_id,
+        )
         logger.info("Message sent to %s (API fallback)", public_identifier)
         return True
     except Exception as e:

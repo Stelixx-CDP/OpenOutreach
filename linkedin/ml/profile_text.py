@@ -30,7 +30,7 @@ def build_profile_text(profile: dict) -> str:
 
     for edu in p.get("educations", []) or []:
         parts.append(edu.get("school_name", "") or "")
-        parts.append(edu.get("degree", "") or "")
+        parts.append(edu.get("degree_name", "") or "")
         parts.append(edu.get("field_of_study", "") or "")
 
     return " ".join(parts).lower()
